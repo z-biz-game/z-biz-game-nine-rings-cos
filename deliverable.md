@@ -348,3 +348,25 @@ $ lsof -nP -iTCP:5181 -iTCP:9341 -sTCP:LISTEN
 | §5 node ≥ 38 | — | 62（§5.2） |
 | §5 browser ≥ 38，含真实输入事件段 | — | 94，其中 `@pointer` 24（§5.3） |
 | §7 9 环是设计边界 | 文档写死 | 写在 `DESIGN.md` §8、`README.md` 已知边界 |
+
+---
+
+## 8. 线上验收（GitHub Pages，主代理 2026-09-27 实抓）
+
+本机 `tools/verify.sh` 跑的是 `server.cjs`；这一段证明**部署产物本身**也能跑（模块路径、MIME、hash 路由在
+GitHub Pages 下同样成立），并且不是"测试全绿但画面是坏的"。
+
+```
+https://z-biz-game.github.io/z-biz-game-nine-rings-cos/                 200  2954 B（含"九连环" 3 处）
+  js/main.js 200 16685 · js/core/solve.js 200 6823 · css/game.css 200 6864 · js/data/levels.js 200 7001
+#/lot/novice-01 下页面状态（浏览器内取到的真实值）：
+  window.rings = object，24 个键
+  canvas 1384×970（不是未初始化的 300×150）
+  画布像素抽样：74 个不同颜色、1258 个非黑采样 ⇒ 环与剑真的被画出来了
+  console 消息：（none）
+  面板文案含"关卡 novice-01 初摘 1-128 步 / 穷尽 512 态 / 剑上 1 共 9 环"
+```
+
+CI：`gh` 不可用，用 `status.sh` 查 API —— 最新 commit `success`，Pages `build_type: workflow` 已启用。
+未抓的两项留作已知缺口：**没有像素级截图**（本机当且仅当只允许一个 headless Chrome，抓取时段被别的仓占着，
+故改用上面的画布抽样代替）；**移动端未真机验证**（§6-2）。
