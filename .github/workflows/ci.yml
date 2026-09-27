@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # The rule, the solver, the generator and the shipped pool are all pure ES modules: no
+  # browser and no install step. Two rows are the reason this job exists:
+  #   * solve.test.mjs — all 512 positions are searched exhaustively, the graph is proved to
+  #     be a path, and every BFS distance is cross-checked against the classical closed form
+  #     (2^(n+1)-(1 or 2))/3 for n = 1..12;
+  #   * library.test.mjs — re-solves every level in js/data/levels.js, so a hand-edited par
+  #     or a stale bake fails the build instead of shipping.
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax
+        run: for f in js/*.js js/*/*.js server.cjs electron/main.cjs tools/*.mjs test/*.mjs; do node --check "$f"; done
+      - name: Suites
+        run: for f in test/*.test.mjs; do echo "::group::$f"; node "$f"; echo "::endgroup::"; done
+
+  # The shell is only proven by driving a real page with real mouse events: the canvas hit
+  # test, the illegal-click rule and the save file all live behind `window.rings`.
+  browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Headless playtest
+        env:
+          SKIP_UNIT: 1
+          WD_TIMEOUT: 240
+        run: bash tools/verify.sh

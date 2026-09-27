@@ -1,0 +1,40 @@
+{
+  "name": "nine-rings",
+  "version": "1.0.0",
+  "description": "九连环 Nine Rings — 浏览器原生九连环. 全部 512 个位置被穷尽广度优先搜索, 每关最少拨环数与难度带都是量出来的.",
+  "type": "module",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "start": "node server.cjs",
+    "dev": "node server.cjs 5181",
+    "electron": "electron .",
+    "bake": "node tools/bake.mjs",
+    "balance": "node test/balance.mjs",
+    "check": "for f in js/*.js js/*/*.js server.cjs electron/main.cjs tools/*.mjs test/*.mjs; do node --check \"$f\" || exit 1; done && echo OK",
+    "unit": "for f in test/*.test.mjs; do node \"$f\" || exit 1; done",
+    "test": "npm run check && npm run unit",
+    "verify": "bash tools/verify.sh"
+  },
+  "keywords": [
+    "game",
+    "puzzle",
+    "nine-rings",
+    "jiulianhuan",
+    "chinese-rings",
+    "bfs",
+    "gray-code",
+    "zero-dependency",
+    "electron"
+  ],
+  "author": "z-biz-game",
+  "license": "MIT",
+  "dependencies": {},
+  "devDependencies": {},
+  "build": {
+    "appId": "com.zbiz.ninerings",
+    "productName": "Nine Rings",
+    "mac": { "category": "public.app-category.puzzle-games" },
+    "win": { "target": "nsis" },
+    "linux": { "target": "AppImage" }
+  }
+}
