@@ -4,7 +4,10 @@
 下面每一条声称都指到一个具体文件与一条能跑的命令；所有输出行都是本机实跑后原样粘贴，
 不是从 README.md / DESIGN.md 里抄的文字（抄来的部分会标注来源，并在 §6 列出与实跑不符的几处）。
 
-本次会话**只新增本文件**：没有修改任何其它文件，没有新增功能，没有执行任何 git 写操作。
+本次会话**只新增本文件**：没有修改任何其它文件的**内容**，没有新增功能，没有执行任何 git 写操作。
+唯一被写过的第二个路径是 `js/data/levels.js`——它是 `node tools/bake.mjs`（交付要求实跑的命令之一）的产物；
+重跑两次做 `diff` 得 **byte-identical**（md5 `cc63f707e75daff7797016e65757a9fa`，64 行关卡不变），
+所以它是"被重新量了一遍、数值没动"，不是被编辑过。见 §4.1 末尾。
 
 ---
 
@@ -22,7 +25,7 @@
 | npm 依赖 | `dependencies = {}`、`devDependencies = {}` | `node -e 'const p=require("./package.json");console.log(p.dependencies,p.devDependencies)'` → `{} {}` |
 | 二进制资产 | 0（无 png/mp3/字体；画面是 canvas 2D 程序绘制） | `find . -type f ! -name '*.md' ! -name '*.js' ! -name '*.mjs' ! -name '*.cjs' ! -name '*.css' ! -name '*.html' ! -name '*.json' ! -name '*.sh' ! -name '*.yml'` → 只有 `LICENSE`、`.gitignore` |
 | 磁盘文件 | 32 个（本文件写完后 33），源码/样式/脚本 4225 行 | `find . -type f -not -path './.git/*' \| wc -l` |
-| 未实现清单 | 11 条（含 2 处文档与实现不符、1 处规格主张为假） | 见 §6 |
+| 未实现清单 | 11 条（含 4 处文档/注释与实跑数字不符 §6-3…§6-6；另有 2 条规格主张被实测否证，见 §2 的 #4/#5） | 见 §6 |
 
 ---
 
@@ -90,29 +93,35 @@
 
 ## 2. 改动表（先写错在哪 → 为什么对）
 
-来源：`DESIGN.md` §1.2 / §2 / §3 / §5 / §6 / §7.4 记录的实际踩坑，加上本次交付核查时发现的两处文档缺陷。
+本表的每一条都能在 `DESIGN.md` §1.2 / §2 / §3 / §5 / §6 / §7.4 或 `js/core/*.js`、`tools/playtest.mjs` 的行内注释里找到出处；
+本节把它们消化成表，不另起一套说法。
+来源标法（每行第一格里的方括号标签）：**[本仓真踩过的]** = 这份代码里确实写过、DESIGN/代码注释记录了；
+**[家族教训]** = 契约 §2 与 `DESIGN.md` §7 记的上一仓实跑故障，本仓一开始就按教训写；
+**[规格主张，被实测否证]** = 简报 `/tmp/puzzle-brief/nine-rings.md` 写错，本仓按实测交付；
+**[风险类，未记录为已发生]** = 只是容易错、DESIGN 要求"错法要有对应的钉"，本仓没有提交过；
+**[本次核查新发现，未修]** = 这一轮读文件时发现的文档缺陷，本任务禁止改其它文件所以只登记。
 "现在的钉"必须是能跑的命令或磁盘上的断言名，不是叙述。
 
 | # | 当时错在哪 | 为什么这样才对 | 现在的钉 |
 |---|---|---|---|
-| 1 | 把 `k === 1`（环 2）特判成"和环 1 一样总能动" | 那是一行"简化"，图依然连通、512 个位置依然全覆盖，但它是**另一个更简单的玩具**：全上→全下量出 171，不是 341。环 2 必须要求环 1 在剑上 | `test/formula.test.mjs:64-100` 把错的谓词抄进测试、跑同一次 BFS，断言"它确实到 171 且确实覆盖 512 个位置"，因此覆盖率检查抓不到它——只有绝对数字能抓。跑：`node --test test/` |
-| 2 | 掩码下标 off-by-one：`state & ((1 << k) - 1)` | 那样会把"要求 bit k−1 为 1"的那位也算进"必须为 0"，两个条件互斥 ⇒ 环 2 以上永远拨不动，游戏退化成只有环 1 能动 | `js/core/game.js:39` 用 `(1 << (k - 1)) - 1`；正反例夹击在 `test/fixture.mjs` 的 `ILLEGAL`/`LEGAL`，由 `test/solve.test.mjs` "the rule says no/yes where the fixture says ..." 逐条钉 |
-| 3 | `js/main.js` 自己写 `(state >> k) & 1`、`js/view.js` 用四处 `bitAt(...) === 1` | 位布局是 `game.js` 的知识。shell 里出现第二份位移，规则改了它不跟着改，画面与文案会**安静地说谎**（规则本身还是对的，最难查） | 统一走 `isOn`；`test/game.test.mjs:194` "no shipped shell or view re-derives the bit layout" 直接读 `js/main.js`/`js/view.js` 源码，出现 `>> k`、`& 1)`、`bitAt(` 即失败，并要求 `isOn(` 真的被用到 |
-| 4 | 规格 §2 写"直径：n=9 时 `max(dist)` 必须是 341" | 两个不同的数被合成了一句：以空剑为根时 `dist[全1] = 341 = (2^10−1)/3`（闭式量的是它），而 `max(dist) = 511`，取在位置 256（只有第 9 环在剑上）。按规格那句话写断言要么红，要么有人把根改成"全上"来凑绿 | 两条分开钉：`test/solve.test.mjs:66` "a(9) = 511: the deepest single ring is the far end of the graph"；`test/formula.test.mjs:51` "the eccentricity of the all-on position is 341, its diameter is not"（341 与 511 在同一条断言里对照）。解释在 `DESIGN.md` §1.2 |
-| 5 | 规格 §3 预估难度带 `1–7 / 8–31 / 32–127 / 128–341` | 那要求距离按 2 的幂堆积（图"深而窄"）。这张图是一条路径：`degree 1-2`、`reached 512`、每个距离恰好一个位置 ⇒ 直方图是平的，等分位数只能切出等宽区间 | 带在加载时现算（`js/core/make.js:39` → `bandCuts`），实测 `1-128(128) 129-256(128) 257-383(127) 384-511(128)`，见 §4.2 的 `parts=4` 行；钉在 `test/make.test.mjs:18` 与 `test/library.test.mjs` "the bands are the histogram..." |
-| 6 | 把"生成包络"与"已发布关卡的 min/max"当同一个数（DESIGN.md §3 记为 gridlock 仓抄错过的格） | `TIERS` 是生成时允许哪些 par；`TIERS_META` 是 16 关实际落成什么。UI 印的是后者，两者并排存着才不会静默合并 | `tools/bake.mjs:76-87` 从入库行里量 `TIERS_META`；`test/library.test.mjs:73` "the bands on screen are the bands in the file, and they do not overlap" 与 `:88` 比对 `envelope`/`HISTOGRAM.cuts`/shipped 三者 |
-| 7 | 场景体（写在模板字面量里的页面源码）里正则用单反斜杠 `\/` | 单反斜杠被模板吃掉，页面收到未闭合的正则字面量，整段 `@save` 在**解析期**就抛 `SyntaxError: Invalid regular expression flags`，一条断言都没跑 | 硬规矩"体内不写反引号、不写单反斜杠斜杠"，注释在 `tools/playtest.mjs:604-608`；实跑 `=== @save === rows: 13 fail: []`（§5.3） |
-| 8 | 六段共用同一页面时不清 `window.__lastRows` | 上一段的行缓冲还在：某段抛在解析期时，聚合器把**上一段的 rows** 当本段成绩打印（`@save` 曾报 `rows: 18` 而它实际一条没跑）——坏掉的台架看起来是绿的 | `tools/playtest.mjs:170` 每段执行前 `window.__lastRows = null`，抛错时补一条 `@<name> threw` 的失败行（`:173-177`） |
-| 9 | 三条断言用 `/已通 <b>N<\/b>/` 去匹配 `.textContent` | `textContent` 按定义不含标记，所以无论屏幕印什么都不可能为真。改的是台架不是期望值：`innerHTML`，**期望字符串一个字没动** | `tools/playtest.mjs:588/618/640` 用 `.innerHTML`；本次 `@save`/`@reloaded` 全绿 |
-| 10 | `Page.navigate` 之后固定 `sleep()` | 本地够用、线上不够：`window.rings` 还没出现就开始断言，canvas 停在未样式的 300×150，一次无辜部署会产三条假故障 | `waitShell()` 轮询 `window.rings.state.id`（`tools/playtest.mjs:116-128`）；`tools/verify.sh:79-84` 同口径轮询 boot 关卡 |
-| 11 | `canvas.getContext('2d')` 未带 `willReadFrequently` | 台架用 `getImageData` 回读像素证明"合法点击改画面、非法点击不改"；没这个标志 Chrome 每次回读打一条 warning，会淹没"console 必须干净"那条断言 | `js/view.js:35`；`tools/verify.sh:119-123` 的检查 + 本次 `=== console === (none)` |
-| 12 | 没有 `<link rel="icon" href="data:,">` | favicon 404 是纯噪音，但它会踩掉"console 干净"这条断言 | `index.html:8`；同上 |
-| 13 | headless 把自己报成 hidden，于是接了 `visibilitychange` 去暂停 rAF | 通关动画与胜利卡片由同一个 rAF 循环驱动，一暂停测试永远看不到通关 | `js/main.js:398-402` 显式不接该事件（注释说明理由）；钉在 `@pointer` "the sword is empty and the level is won" + "the win card goes up with three stars" |
-| 14 | `solve.js` 里曾有 `distOf(state, n)`、`library` 侧曾有 `tableForLevel(n)`、`game.js` 侧曾有 `stateOfBits(bits)` | 一个缓存两个名字 ⇒ 未来编辑会让它们各自长身体；`distOf(state, n)` 邀请调用方传一个与所玩关卡不一致的 `n`；位置本身就是掩码，`bits → state` 只会被"反过来验 `bitsOf`"的东西要，而那处（`test/solve.test.mjs` "bitsOf and toggle round-trip a position"）故意手搓期望掩码，好让 shipped helper 不当自己的 oracle | 三个都已删除而不是接线（注释在 `js/core/solve.js:117-125`、`js/core/game.js:60-64`）。替代证据：`test/solve.test.mjs:188` "a distance belongs to the bits, not to the ring count named" 量遍 n=1..9 |
-| 15 | `reset()` 只清 localStorage、留内存缓存（DESIGN §5 记为隐患） | 陈旧缓存比不清档更糟：屏幕说清了、纪录还会回来 | `js/core/storage.js:113-121` 连 `cache` 一起换；`test/storage.test.mjs:170` "a save survives a reload, and a wipe really wipes" + `@save` "清空存档 takes two clicks and clears everything"、`@reloaded` "and a reset leaves nothing on disk for the next visitor" |
-| 16 | `formula(n)` 的公开范围：`buildTable` 的环数上界若做钳制 | 钳制会把越界调用静默变成"算了个小 n"。本仓 `buildTable` 越界**直接 throw**（n ≤ 16），`formula` 钳在 1 ≤ n ≤ 51（`Number` 到 n=51 才失真） | `js/core/solve.js:31,40`；`@boot` "and the page refuses an out-of-range ring count"（`playtest.mjs:423`）；范围之外不做（§6-1 与 DESIGN §8） |
-| 17 | 本次核查新发现（未修，见 §6-3）：`README.md:23` 写 `node server.cjs # http://127.0.0.1:5180/` | 实现默认端口是 **5181**（`server.cjs:48,59`），`verify.sh` 的 `WEB_PORT` 与 `playtest.mjs` 的 `BASE` 也都是 5181；照 README 抄会连不上 | 复现：`grep -rn "5180\|5181" README.md server.cjs tools/` |
-| 18 | 本次核查新发现（未修，见 §6-4）：`js/main.js:37` 注释引用 "DESIGN.md 1.3" | `DESIGN.md` 只有 1、1.1、1.2…，相关内容在 §1.1；指向不存在的节会让维护者按错的坐标找约束 | 复现：`grep -rn "1\.3" js DESIGN.md` |
+| 1 | **[本仓真踩过的]** 把 `k === 1`（环 2）特判成"和环 1 一样总能动" | 那是一行"简化"，图依然连通、512 个位置依然全覆盖，但它是**另一个更简单的玩具**：全上→全下量出 171，不是 341。环 2 必须要求环 1 在剑上 | `test/formula.test.mjs:64-100` 把错的谓词抄进测试、跑同一次 BFS，断言"它确实到 171 且确实覆盖 512 个位置"，因此覆盖率检查抓不到它——只有绝对数字能抓。跑：`node --test test/` |
+| 2 | **[风险类，未记录为已发生]** 掩码下标 off-by-one：`state & ((1 << k) - 1)` | 那样会把"要求 bit k−1 为 1"的那位也算进"必须为 0"，两个条件互斥 ⇒ 环 2 以上永远拨不动，游戏退化成只有环 1 能动 | `js/core/game.js:39` 用 `(1 << (k - 1)) - 1`；正反例夹击在 `test/fixture.mjs` 的 `ILLEGAL`/`LEGAL`，由 `test/solve.test.mjs` "the rule says no/yes where the fixture says ..." 逐条钉 |
+| 3 | **[本仓真踩过的]** `js/main.js` 自己写 `(state >> k) & 1`、`js/view.js` 用四处 `bitAt(...) === 1` | 位布局是 `game.js` 的知识。shell 里出现第二份位移，规则改了它不跟着改，画面与文案会**安静地说谎**（规则本身还是对的，最难查） | 统一走 `isOn`；`test/game.test.mjs:194` "no shipped shell or view re-derives the bit layout" 直接读 `js/main.js`/`js/view.js` 源码，出现 `>> k`、`& 1)`、`bitAt(` 即失败，并要求 `isOn(` 真的被用到 |
+| 4 | **[规格主张，被实测否证]** 规格 §2 写"直径：n=9 时 `max(dist)` 必须是 341" | 两个不同的数被合成了一句：以空剑为根时 `dist[全1] = 341 = (2^10−1)/3`（闭式量的是它），而 `max(dist) = 511`，取在位置 256（只有第 9 环在剑上）。按规格那句话写断言要么红，要么有人把根改成"全上"来凑绿 | 两条分开钉：`test/solve.test.mjs:66` "a(9) = 511: the deepest single ring is the far end of the graph"；`test/formula.test.mjs:51` "the eccentricity of the all-on position is 341, its diameter is not"（341 与 511 在同一条断言里对照）。解释在 `DESIGN.md` §1.2 |
+| 5 | **[规格主张，被实测否证]** 规格 §3 预估难度带 `1–7 / 8–31 / 32–127 / 128–341` | 那要求距离按 2 的幂堆积（图"深而窄"）。这张图是一条路径：`degree 1-2`、`reached 512`、每个距离恰好一个位置 ⇒ 直方图是平的，等分位数只能切出等宽区间 | 带在加载时现算（`js/core/make.js:39` → `bandCuts`），实测 `1-128(128) 129-256(128) 257-383(127) 384-511(128)`，见 §4.2 的 `parts=4` 行；钉在 `test/make.test.mjs:18` 与 `test/library.test.mjs` "the bands are the histogram..." |
+| 6 | **[家族教训]** 把"生成包络"与"已发布关卡的 min/max"当同一个数（DESIGN.md §3 记为 gridlock 仓抄错过的格） | `TIERS` 是生成时允许哪些 par；`TIERS_META` 是 16 关实际落成什么。UI 印的是后者，两者并排存着才不会静默合并 | `tools/bake.mjs:76-87` 从入库行里量 `TIERS_META`；`test/library.test.mjs:73` "the bands on screen are the bands in the file, and they do not overlap" 与 `:88` 比对 `envelope`/`HISTOGRAM.cuts`/shipped 三者 |
+| 7 | **[本仓真踩过的]** 场景体（写在模板字面量里的页面源码）里正则用单反斜杠 `\/` | 单反斜杠被模板吃掉，页面收到未闭合的正则字面量，整段 `@save` 在**解析期**就抛 `SyntaxError: Invalid regular expression flags`，一条断言都没跑 | 硬规矩"体内不写反引号、不写单反斜杠斜杠"，注释在 `tools/playtest.mjs:604-608`；实跑 `=== @save === rows: 13 fail: []`（§5.3） |
+| 8 | **[本仓真踩过的]** 六段共用同一页面时不清 `window.__lastRows` | 上一段的行缓冲还在：某段抛在解析期时，聚合器把**上一段的 rows** 当本段成绩打印（`@save` 曾报 `rows: 18` 而它实际一条没跑）——坏掉的台架看起来是绿的 | `tools/playtest.mjs:170` 每段执行前 `window.__lastRows = null`，抛错时补一条 `@<name> threw` 的失败行（`:173-177`） |
+| 9 | **[本仓真踩过的]** 三条断言用 `/已通 <b>N<\/b>/` 去匹配 `.textContent` | `textContent` 按定义不含标记，所以无论屏幕印什么都不可能为真。改的是台架不是期望值：`innerHTML`，**期望字符串一个字没动** | `tools/playtest.mjs:588/618/640` 用 `.innerHTML`；本次 `@save`/`@reloaded` 全绿 |
+| 10 | **[家族教训]** `Page.navigate` 之后固定 `sleep()` | 本地够用、线上不够：`window.rings` 还没出现就开始断言，canvas 停在未样式的 300×150，一次无辜部署会产三条假故障 | `waitShell()` 轮询 `window.rings.state.id`（`tools/playtest.mjs:116-128`）；`tools/verify.sh:79-84` 同口径轮询 boot 关卡 |
+| 11 | **[风险类，未记录为已发生]** `canvas.getContext('2d')` 未带 `willReadFrequently` | 台架用 `getImageData` 回读像素证明"合法点击改画面、非法点击不改"；没这个标志 Chrome 每次回读打一条 warning，会淹没"console 必须干净"那条断言 | `js/view.js:35`；`tools/verify.sh:119-123` 的检查 + 本次 `=== console === (none)` |
+| 12 | **[家族教训]** 没有 `<link rel="icon" href="data:,">` | favicon 404 是纯噪音，但它会踩掉"console 干净"这条断言 | `index.html:8`；同上 |
+| 13 | **[本仓真踩过的]** headless 把自己报成 hidden，于是接了 `visibilitychange` 去暂停 rAF | 通关动画与胜利卡片由同一个 rAF 循环驱动，一暂停测试永远看不到通关 | `js/main.js:398-402` 显式不接该事件（注释说明理由）；钉在 `@pointer` "the sword is empty and the level is won" + "the win card goes up with three stars" |
+| 14 | **[本仓真写过、后删]** `solve.js` 里曾有 `distOf(state, n)`、`library` 侧曾有 `tableForLevel(n)`、`game.js` 侧曾有 `stateOfBits(bits)` | 一个缓存两个名字 ⇒ 未来编辑会让它们各自长身体；`distOf(state, n)` 邀请调用方传一个与所玩关卡不一致的 `n`；位置本身就是掩码，`bits → state` 只会被"反过来验 `bitsOf`"的东西要，而那处（`test/solve.test.mjs` "bitsOf and toggle round-trip a position"）故意手搓期望掩码，好让 shipped helper 不当自己的 oracle | 三个都已删除而不是接线（注释在 `js/core/solve.js:117-125`、`js/core/game.js:60-64`）。替代证据：`test/solve.test.mjs:188` "a distance belongs to the bits, not to the ring count named" 量遍 n=1..9 |
+| 15 | **[风险类，未记录为已发生]** `reset()` 只清 localStorage、留内存缓存（DESIGN §5 记为隐患） | 陈旧缓存比不清档更糟：屏幕说清了、纪录还会回来 | `js/core/storage.js:113-121` 连 `cache` 一起换；`test/storage.test.mjs:170` "a save survives a reload, and a wipe really wipes" + `@save` "清空存档 takes two clicks and clears everything"、`@reloaded` "and a reset leaves nothing on disk for the next visitor" |
+| 16 | **[风险类，未记录为已发生]** 环数上界若做**钳制**而不是抛错（`buildTable(n)` / `formula(n)` 的边界） | 钳制会把越界调用静默变成"算了个小 n"，屏幕上照样印一个数、只是答非所问。本仓 `buildTable` 越界**直接 throw**（n ≤ 16），`formula` 钳在 1 ≤ n ≤ 51（`Number` 到 n=51 才失真） | `js/core/solve.js:31,40`；`@boot` "and the page refuses an out-of-range ring count"（`playtest.mjs:423`）；上界之外刻意不做（§6-10 与 `DESIGN.md` §8） |
+| 17 | `README.md:23` 曾写 `node server.cjs # http://127.0.0.1:5180/` | 实现默认端口是 **5181**（`server.cjs:48,59`），`verify.sh` 的 `WEB_PORT` 与 `playtest.mjs` 的 `BASE` 也都是 5181；照 README 抄会连不上 | **已改为 5181**（主代理核查后修）。复现：`grep -rn "5180\|5181" README.md server.cjs tools/` 现只回 5181 |
+| 18 | `js/main.js:37` 注释曾引用 "DESIGN.md 1.3" | `DESIGN.md` 只有 1、1.1、1.2…，相关内容在 §1.1；指向不存在的节会让维护者按错的坐标找约束 | **已改为 §1.1**。复现：`grep -rn "DESIGN.md" js/main.js` |
 
 ---
 
@@ -124,7 +133,7 @@
 | 零依赖 | `node -e` 读 `package.json` | `dependencies {}`、`devDependencies {}` |
 | 无 `node_modules` | `ls node_modules` | `No such file or directory` |
 | 无二进制资产 | 摘要表里的 `find` | 只剩 `LICENSE`、`.gitignore` |
-| 无未接线的模块级导出 | `grep -rn "mulberry32\|shuffle\|\.chance(\|\.range(" js test tools` | 模块级导出都有外部调用方；`mulberry32` 只被 `rngFrom`（同文件 `:41-42`）用，`rng.range/chance/shuffle` 无任何调用方（契约 §1 要求 `rng.js` 原样搬运，与 §5 的"无人调用则删"在这一格冲突，本仓按 §1 保留）——见 §6-9 |
+| 无未接线的模块级导出 | `grep -rn "mulberry32\|shuffle\|\.chance(\|\.range(" js test tools` → 命中全在 `js/core/rng.js:16,29,41,42`；调用方 `grep -rn "\.pick(\|\.int(" js test tools \| grep -v core/rng.js` → 只有 `js/core/make.js:61,69,96` | 模块级导出都有外部调用方；`mulberry32` 只被 `rngFrom`（同文件 `:41-42`）用，`rng.range`/`rng.chance`/`rng.shuffle`（`:26,28,29` 定义）无任何调用方。契约 §1 要求 `rng.js` 原样搬运，与 §5 的"无人调用则删"在这一格冲突，本仓按 §1 保留——见 §6-7。另有 `window.rings.undoOnce` 一条未接线钩子，同见 §6-7 |
 | 关卡数据确实是产物 | `grep -c '^  {' js/data/levels.js` | `64` |
 
 ---
@@ -157,6 +166,12 @@ rc=0
 | 拒绝原因 | **无拒绝**。`makeLevel` 唯一的拒绝分支是"带广告了一个表里不存在的距离"（`js/core/make.js:68`），而带由表证明非空，所以它不响；`tools/bake.mjs:46` 把"接受率不满"设成构建失败，不是日志 | `generator:` 行的 `800/800` + `tools/bake.mjs:40-46` |
 | 复现命令 | 就是 `node tools/bake.mjs` 这一条（可选 `PER_BAND=24`、`PROBE=2000` 两个环境变量，见 `tools/bake.mjs:13-15`） | — |
 
+**幂等性（这条命令会写文件，所以必须验）**：`cp js/data/levels.js /tmp/ && node tools/bake.mjs && diff` 实跑得
+`bake is idempotent: levels.js byte-identical across two runs`，两遍 md5 都是 `cc63f707e75daff7797016e65757a9fa`、
+`grep -c '^  {' js/data/levels.js` 仍是 `64`。也就是说 §4.1 的 `table:/bands:/generator:/histogram:` 四行
+不是一次性观察，而是同一份种子下一次复现的产物；重写之后 `node --test test/`（§5.2，第二次跑）与
+`SKIP_UNIT=1 bash tools/verify.sh`（§5.3）都是绿的，两者都会独立复算这 64 行。
+
 ### 4.2 `node test/balance.mjs` —— 文档里那张难度表的量具（本次实跑）
 
 ```
@@ -171,6 +186,13 @@ $ node test/balance.mjs
 
 parts=4 | 1-128(128)  129-256(128)  257-383(127)  384-511(128)
 n=9 每一格 | novice 1-128(128)  linked 129-256(128)  twined 257-383(127)  master 384-511(128)
+
+# 每一带的形状（整带 128/127 个位置，不是已发布 16 关）
+band | par 范围 | 位置数 | 实测: 剑上环数 min/med/max | 可拨环数分布
+novice | 1-128 | 128 | 1/3/7 | 2:128
+linked | 129-256 | 128 | 1/4/8 | 2:128
+twined | 257-383 | 127 | 3/6/9 | 2:127
+master | 384-511 | 128 | 1/4/8 | 1:1 2:127
 
 # 生成器（每带 500 个种子）
 novice | 500/500 | 1/67/128 | 0.0013 | 0.2072
@@ -202,7 +224,7 @@ n=13 nodes=8192 reached=8192 complete=true BFS=5461 formula=5461 maxDist=8191
 n=14 nodes=16384 reached=16384 complete=true BFS=10922 formula=10922 maxDist=16383
 ```
 
-5461 与 10922 正是主代理手算表（1,2,5,10,21,42,85,170,341,682,1365,2730,5461,10922）的第 13、14 项；`buildTable` 的 n ≤ 16 上界允许这么跑（`js/core/solve.js:40`）。**这条不在 CI 里**（8192/16384 结点的两次建图会把 node 层从亚秒拖到秒级，且它是同一条主张的延伸而非新面），要长期钉住就往 `test/formula.test.mjs` 的 PUBLISHED 里加两行——本次交付未改任何文件。
+5461 与 10922 正是主代理手算表（1,2,5,10,21,42,85,170,341,682,1365,2730,5461,10922）的第 13、14 项；`buildTable` 的 n ≤ 16 上界允许这么跑（`js/core/solve.js:40`）。**这条不在 CI 里**（8192/16384 结点的两次建图会把 node 层从亚秒拖到秒级，且它是同一条主张的延伸而非新面），要长期钉住就往 `test/formula.test.mjs` 的 PUBLISHED 里加两行——本次交付没有动 `test/`（只登记，不扩测）。
 
 ---
 
@@ -294,15 +316,19 @@ $ lsof -nP -iTCP:5181 -iTCP:9341 -sTCP:LISTEN
 
 ## 6. 未实现清单（诚实列）
 
-按"缺什么"排序，不是"做完了什么"的换种说法。第 3、4、5、8 条是本次核查新发现的**文档与实现不符**，本任务禁止改其它文件，所以只登记不修。
+按"缺什么"排序，不是"做完了什么"的换种说法。第 3、4、5、6 条是本次核查新发现的**文档/注释与实跑不一致**，
+本任务禁止改其它文件所以先登记；第 3、4 条**随后由主代理修掉**（见改动表 #17/#18），第 5、6 条仍为未修。
 
 1. **Electron 壳从未真实启动**。只有 `node --check electron/main.cjs`（在 §5.1 的 `npm run check` 里）过语法；仓内不装 electron、本机也没装，`README.md:130` 已声明。契约 §1 只要求复用 `server.cjs` + `port:0`（`electron/main.cjs:7-8` 确实如此），**运行性未验证**。
 2. **移动端未真机验证**。`css/game.css` 的 ≤820px 断点与 `touch-action: none` 写了，`@pointer` 走的是鼠标事件（`Input.dispatchMouseEvent`），没有派发过 `Input.dispatchTouchEvent`。`README.md:131` 已声明。
-3. **`README.md:23` 端口写错**：印的是 `# http://127.0.0.1:5180/`，实现默认 **5181**（`server.cjs:48,59`、`package.json:9` 的 `dev` 脚本、`verify.sh:16`、`playtest.mjs:18` 全是 5181）。见改动表 #17。
-4. **`js/main.js:37` 注释指向不存在的节**："see DESIGN.md 1.3"；`DESIGN.md` 相关内容在 §1.1。见改动表 #18。
+3. **`README.md:23` 端口曾写错**（已修）：印的是 `# http://127.0.0.1:5180/`，实现默认 **5181**（`server.cjs:48,59`、`package.json:9` 的 `dev` 脚本、`verify.sh:16`、`playtest.mjs:18` 全是 5181）。见改动表 #17。
+4. **`js/main.js:37` 注释曾指向不存在的节**（已修）："see DESIGN.md 1.3"；`DESIGN.md` 相关内容在 §1.1。见改动表 #18。
 5. **计时数字不逐位可复现，文档未标注这一点**。本次实跑：`bake` 的 `0.0037 ms/level`、`balance` 的 `25 次完整 BFS 中位 0.056 · 最快 0.049 · 最慢 0.161`、`novice` 最慢 0.2072 ms。而 `README.md:63,80` 印的是 `中位 0.048 · 最快 0.046 · 最慢 0.170` 与 `中位 0.0013–0.0017 ms、最慢 0.5646 ms`，`js/core/library.js:11` 的注释印的是 `0.0025 ms each`。**结构量（512 / 341 / 511 / 四档区间 / 800-of-800）逐位可复现，计时量随机器与负载漂移**——文档把它们和结构量并列呈现，没写这一句区分。
 6. **`README.md:49-54` 那张表混用了两个统计口径而未标注**：`关卡数 / par 中位` 来自**已发布 16 关**（`library.stats()`），`区间内位置数 / 剑上环数 min/med/max` 来自**整带 128/127 个位置**（`balance.mjs` 的"每一带的形状"段）。已发布池自己的剑上环数是 novice 1-6 / linked 2-7 / twined 3-9 / master 1-8（§4.2 的"各带剑上环数"行）。两栏都能用 `node test/balance.mjs` 复现，但同一行不同源。
-7. **`rng.js` 有 3 个无人调用的便捷方法**：`rng.range` / `rng.chance` / `rng.shuffle`；`mulberry32` 只被同文件的 `rngFrom` 用（不必导出）。这是契约 §1（"rng.js 原样搬过去"）与 §5（"导出的函数若无人调用，删掉"）在这一格上的冲突，本仓按 §1 保留。**没有未接线的幽灵功能或幽灵界面**：`window.rings` 的每个方法都有 `@boot/@play/@routes/@save/@reloaded/@pointer` 或 `tools/playtest.mjs tap` 用过。
+7. **两处"导出但没人调用"（契约 §5 要求删掉，本仓没删干净）**：
+   - `js/core/rng.js` 的 `rng.range`（`:26`）/ `rng.chance`（`:28`）/ `rng.shuffle`（`:29`）无任何调用方；被用到的是 `rng.int`（`js/core/make.js:61`）与 `rng.pick`（`:69,96`）。另外 `mulberry32` 只被同文件的 `rngFrom` 用（`:41-42`），不必导出。这是契约 §1（"rng.js 原样搬过去"）与 §5（"无人调用则删"）在这一格上的冲突，本仓按 §1 保留。
+   - `window.rings.undoOnce`（`js/main.js:451`）在仓内**只有定义、没有调用方**：`grep -rn "undoOnce" js tools test` 只回 `js/main.js:451`。这是本次核查新查出的一条，比摘要里"unwired exports none"更严的口径。
+   除这一格外，`window.rings` 的其余成员都被台架读到或调用（复现：`grep -oE "\bg\.[a-zA-Z]+\(" tools/playtest.mjs | sort -u` 列出 18 个方法调用，另有 `state/pool/bands/version/store` 以属性形式读）。**没有幽灵界面**：撤销能力本身有真断言（`@pointer` 的 "the u key undoes" 与 "undo takes the step back and the picture back with it"），没接线的只是 `undoOnce` 这个钩子别名。
 8. **GitHub Actions 未在本机执行过**（无远端、无推送；本任务禁止 git 写操作）。`ci.yml` 的两个 step 与 `pages.yml` 的拷贝在本地各自等价于 §5.1 / §5.2 / §5.3 已跑绿的命令，但"CI 绿"这一声称要等主代理推上去才成立。
 9. **n = 13、14 的闭式对账不在 CI 里**（§4.3 那条命令是手工一次性命令）。n = 15 及更大未跑（`buildTable` 上界 n ≤ 16，且 2^16 结点已不适合放在每次 CI 的 node 层）。
 10. **18 环 / 24 环、"环数可调"滑块：刻意不做**，不是没做完。理由与失效边界写在 `DESIGN.md` §8 与 `README.md:123-126`：本仓整套"数字是证明值"的主张成立条件就是 512 能在 boot 时穷尽。已发布关卡行允许 `n ≤ 12`（`js/core/library.js:37`），但 shipped 的 64 行全是 `n = 9`（§4.1 的 `wrote 64 levels` 与 `js/data/levels.js` 64 行）。

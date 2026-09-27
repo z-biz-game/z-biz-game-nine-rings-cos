@@ -20,7 +20,7 @@
 ## 跑起来
 
 ```bash
-node server.cjs            # http://127.0.0.1:5180/
+node server.cjs            # http://127.0.0.1:5181/
 npm run unit               # 六个 node 测试套件（62 条断言）
 bash tools/verify.sh       # node 套件 + headless Chrome 真实鼠标点击验收（94 条断言）
 node test/balance.mjs      # 难度表：状态空间、直方图分位、生成器实测、已发布池子

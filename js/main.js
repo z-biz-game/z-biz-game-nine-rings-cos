@@ -34,7 +34,7 @@ const app = {
 
 // The exhaustive sweep, timed once. This is the repo's whole claim in three numbers: 512
 // nodes, all of them reached, and it cost well under a frame — which is why the browser is
-// allowed to hold the entire solution table in memory (see DESIGN.md 1.3).
+// allowed to hold the entire solution table in memory (see DESIGN.md §1.1).
 let graphProbe = null;
 function probeGraph() {
   if (graphProbe) return graphProbe;
