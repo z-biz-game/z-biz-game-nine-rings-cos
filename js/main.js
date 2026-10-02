@@ -30,6 +30,7 @@ const app = {
   hints: 0,
   label: '',
   day: null,
+  paused: false,
 };
 
 // The exhaustive sweep, timed once. This is the repo's whole claim in three numbers: 512
@@ -89,6 +90,7 @@ function resolve(rt) {
 const view = createView(el.canvas, {
   onClick: (k) => commit(k),
   onIllegal: (k) => say(`第 <b>${k + 1}</b> 环现在拨不动 —— 先把它下面那一环拨上、其余环拨下`),
+  onSimTick: (clock, steps) => onSimTick(clock, steps),
 });
 
 function setGame(level, label) {
@@ -291,27 +293,41 @@ function shareLink() {
 
 // The auto-demo is the solver made visible: it walks `next[]`, the same table every other
 // number in this game comes from. Bounded by the size of the state space it reads.
-let demoTimer = 0;
+//
+// It advances on the sim clock rather than `setInterval(…, 150)`: a wall-clock timer keeps
+// 拨ing rings while the player has paused, and its cadence is measured in the shell's
+// seconds rather than the game's, so "the demo spent N clicks at time T" is a different
+// number on a 30Hz laptop and a 120Hz phone.
+const DEMO_TICK = 0.15; // sim seconds between two 拨rings
+let demoOn = false;
 let demoSteps = 0;
+let demoNext = 0;
+const tickWatchers = [];
+
+function onSimTick(clock, steps) {
+  for (const fn of tickWatchers) fn(clock, steps);
+  if (!demoOn || !app.game || app.game.done || clock < demoNext) return;
+  demoNext = clock + DEMO_TICK;
+  const k = nextRing(app.game);
+  if (k < 0 || ++demoSteps > bfs.size) {
+    stopDemo('演示到此为止');
+    return;
+  }
+  commit(k);
+  if (app.game.done) stopDemo('演示走完了一条最短路线');
+}
+
 function startDemo() {
-  if (demoTimer || !app.game || app.game.done) return;
+  if (demoOn || !app.game || app.game.done || app.paused) return;
+  demoOn = true;
   demoSteps = 0;
+  demoNext = view.anim().simClock + DEMO_TICK;
   el.demo.textContent = '停止';
   el.demo.setAttribute('aria-pressed', 'true');
-  demoTimer = setInterval(() => {
-    const k = nextRing(app.game);
-    if (k < 0 || app.game.done || ++demoSteps > bfs.size) {
-      stopDemo('演示到此为止');
-      return;
-    }
-    commit(k);
-    if (app.game.done) stopDemo('演示走完了一条最短路线');
-  }, 150);
 }
 
 function stopDemo(note) {
-  if (demoTimer) clearInterval(demoTimer);
-  demoTimer = 0;
+  demoOn = false;
   el.demo.textContent = '演示';
   el.demo.setAttribute('aria-pressed', 'false');
   if (note) say(note);
@@ -357,6 +373,10 @@ function restart() {
   reset(app.game);
   app.hints = 0;
   el.curtain.hidden = true;
+  // A restart that only rewrote the position would leave the sparks, the shake decay, the
+  // sim clock and the travel buffers running from the previous attempt: same numbers on
+  // screen, different game. `rewind()` puts all of it back to a cold start.
+  view.rewind();
   view.redraw(); // the rings travel back on the animation loop rather than teleporting
   render();
   say('回到起点');
@@ -432,7 +452,8 @@ window.rings = {
       unlocked: store.unlocked,
       solved: ALL.filter((l) => store.record(l.id) && store.record(l.id).solved).length,
       curtain: !el.curtain.hidden,
-      demo: !!demoTimer,
+      demo: demoOn,
+  paused: app.paused,
       n: app.game && app.game.n,
     };
   },
@@ -462,10 +483,25 @@ window.rings = {
   clickRing(k) { return commit(k); },
   hintOnce() { el.hint.click(); return { hints: app.hints, ring: app.game ? nextRing(app.game) : -1, line: el.hintline.textContent }; },
   undoOnce() { el.undo.click(); return app.game.moves; },
-  demoStart() { startDemo(); return !!demoTimer; },
-  demoStop() { stopDemo(''); return demoTimer === 0; },
+  demoStart() { startDemo(); return demoOn; },
+  demoStop() { stopDemo(''); return !demoOn; },
+  // Probe hook: read the sim once per tick. A per-frame reading cannot be aligned to an
+  // exact tick count at 30Hz (two or three ticks land in one frame), which is the whole
+  // difference between a frame-rate measurement and a guess.
+  onTick(fn) {
+    tickWatchers.push(fn);
+    return () => {
+      const i = tickWatchers.indexOf(fn);
+      if (i >= 0) tickWatchers.splice(i, 1);
+    };
+  },
   pixels() { return view.pixelsHash(); },
   painted() { return view.painted(); },
+  // What the animation sim believes: tick count, sim clock, ring travel, shake decay,
+  // spark energy. This is what a frame-rate probe has to read — wall time tells it nothing.
+  anim() { return view.anim(); },
+  setPaused(on) { return view.setPaused(on); },
+  paused() { return app.paused; },
   reset() { restart(); return app.game.moves; },
   store,
 };
