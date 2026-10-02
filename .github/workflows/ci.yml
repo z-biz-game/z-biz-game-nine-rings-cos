@@ -25,7 +25,9 @@ jobs:
         with:
           node-version: 22
       - name: Syntax
-        run: for f in js/*.js js/*/*.js server.cjs electron/main.cjs tools/*.mjs test/*.mjs; do node --check "$f"; done
+        # sw.js is listed explicitly: it sits at the repo root, so no js/** glob reaches it,
+        # and a syntax error in the service worker would otherwise sail through this gate.
+        run: for f in js/*.js js/*/*.js server.cjs sw.js electron/main.cjs tools/*.mjs test/*.mjs; do node --check "$f"; done
       - name: Suites
         run: for f in test/*.test.mjs; do echo "::group::$f"; node "$f"; echo "::endgroup::"; done
 
