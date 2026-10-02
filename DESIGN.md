@@ -248,8 +248,10 @@ the file, and they do not overlap" 再比对一次。改了规则却忘了让这
    `textContent` 按定义没有标记，所以无论屏幕印什么它都不可能为真。改成 `.innerHTML`，
    **期望字符串一个字没动**（屏幕上的数字当时就已经对，失败详情可以作证）。
 
-`index.html` 里的 `<link rel="icon" href="data:,">` 属于同一类：没有它 favicon 404 会污染
-"console 干净"这条断言，而它是个纯噪音。
+`index.html` 的 favicon 属于同一类问题，只是解法换了：早先是 `<link rel="icon" href="data:,">`
+占位，让"console 干净"这条断言不被 404 踩掉；现在是真图标链（`favicon.ico` + 32/16 PNG +
+apple-touch），同一条断言靠的是**这些文件真的在盘上、并且 `.github/workflows/pages.yml` 把
+`assets/` 一起拷进产物**。占位符解决的是噪音，真图标解决的还是噪音——但后者顺带把商店那一头也喂饱了。
 
 ### 7.5 不暂停 `visibilitychange`
 
@@ -270,8 +272,12 @@ headless Chrome 把自己报成 hidden。通关动画与胜利卡片由同一个
   分享的是谜题本身，不含分数。
 - **除自动演示以外不加运营功能**。"演示"是允许的，因为它走 `next[]`，是求解器的可视化而不是另一个引擎
   （`@play` 与 `@pointer` 都断言它不会比 par 更便宜）。
-- **无图片 / 音频 / 字体 / 打包器 / npm 依赖**：剑与九个环全部由 `js/view.js` 程序绘制，
-  二进制资产 0 个。
+- **无打包器 / 无 npm 依赖 / 无网络请求**。音频不是文件：`js/core/audio.js` 用 WebAudio 现场合成，
+  静音态实测不新建振荡器节点。但**位图不再是 0 个**：`assets/gen/make_art.py` 确定性生成图标阶梯、
+  `favicon.ico`、apple-touch、maskable、og 卡，以及游戏内用的剑架织纹（96）与铜花火花（64）。
+  前一组是商店与桌面要求的实物；后两组是矢量画不出来的物理材质——织纹铺给 `createPattern`，
+  火花是带 alpha 的精灵。两张游戏内位图都允许失败：加载不到时 `js/view.js` 回落到程序化绘制，
+  不会少画一帧。剑与九个环（包括穿在杆上 / 挂在杆下两种形态）仍然全部程序绘制，这条主张没松动。
 - **不做多环数并行的关卡模型**：`js/data/levels.js` 的行允许 `n ≤ 12`（为了公式对账时能引用小 n），
   但 shipped 的 64 行全是 n = 9，`library.js` 只挂 n = 9 那张表。
 
