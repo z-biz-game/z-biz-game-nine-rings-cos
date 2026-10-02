@@ -41,7 +41,38 @@
 <main class="stage">
   <section class="board">
     <canvas id="sword" aria-label="剑与九个环"></canvas>
+    <div class="hud" role="toolbar" aria-label="牌桌">
+      <button type="button" id="pause" aria-pressed="false" title="暂停 / 继续（P）">暂停</button>
+      <button type="button" id="sound" aria-pressed="false" title="静音 / 出声（M）">音效</button>
+      <button type="button" id="fullscreen" aria-pressed="false" title="全屏（F）">全屏</button>
+      <button type="button" id="help" title="玩法说明（?）">玩法</button>
+    </div>
+    <p class="pause-flag" id="pauseflag" hidden>暂停中 · 按 P 继续</p>
     <p class="hint-line" id="hintline"></p>
+    <div class="howto" id="howto" hidden role="dialog" aria-modal="true" aria-labelledby="howto-title">
+      <div class="howto-card">
+        <h2 id="howto-title">九连环怎么玩</h2>
+        <ol class="howto-rules">
+          <li>剑上有九个环，<b>目标是把它们全部拨离剑</b>。</li>
+          <li>第 1 环（最右首环）随时能拨，上、下都行。</li>
+          <li>要拨第 <code>k</code> 环（k ≥ 2）：<b>第 k−1 环必须在剑上</b>，而且它下面（更靠左）的环必须<b>全部离剑</b>。一次只能动一环。</li>
+          <li>所以拆到第 5 环之前，常要把已经拆下的环再装回去 —— 这不是失误，是这条路。</li>
+          <li>面板上的「最少」不是设计值：九个环只有 2⁹ = 512 种状态，程序把整张图穷尽走完（BFS）量出来的，并与闭式公式 <code>(2^(n+1) − (n 奇 ? 1 : 2)) / 3</code> 对过账。全上到全下 = <b>341 步</b>。</li>
+        </ol>
+        <dl class="howto-keys">
+          <div><dt>1…9 / 点环</dt><dd>拨那一环</dd></div>
+          <div><dt>U</dt><dd>撤销</dd></div>
+          <div><dt>H</dt><dd>提示（下一步该动哪环）</dd></div>
+          <div><dt>D</dt><dd>让求解器当场演示一条最短路线</dd></div>
+          <div><dt>R</dt><dd>重开本关</dd></div>
+          <div><dt>P / 空格</dt><dd>暂停 · 继续</dd></div>
+          <div><dt>M</dt><dd>静音 · 出声</dd></div>
+          <div><dt>F</dt><dd>全屏</dd></div>
+          <div><dt>? 或 ？</dt><dd>打开 / 关掉这一页</dd></div>
+        </dl>
+        <div class="howto-actions"><button type="button" id="howtoclose" class="primary">开始拨环</button></div>
+      </div>
+    </div>
     <div class="curtain" id="curtain" hidden>
       <div class="curtain-card">
         <p class="stars" id="stars"></p>

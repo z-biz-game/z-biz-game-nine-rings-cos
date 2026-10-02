@@ -456,7 +456,9 @@ export function createView(canvas, { onClick, onIllegal, onSimTick } = {}) {
 
   function frame(now) {
     raf = requestAnimationFrame(frame);
-    const elapsed = Math.min(0.25, (now - (last || now)) / 1000);
+    // The first frame has no predecessor: `last` is 0 until a frame has been measured, and
+    // banking the whole virtual clock as elapsed would step the sim thousands of times.
+    const elapsed = last ? Math.min(0.25, (now - last) / 1000) : 0;
     last = now;
     let busy = false;
     if (paused) {

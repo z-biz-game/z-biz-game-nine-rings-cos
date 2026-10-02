@@ -8,6 +8,7 @@ import {
   TIERS, ALL, byId, levelAt, levelsIn, randomLevel, dailyLevel, tierByKey, stats as poolStats, closedForm,
 } from './core/library.js';
 import { todayKey } from './core/rng.js';
+import { createAudio } from './core/audio.js';
 import { createView } from './view.js';
 
 const $ = (id) => document.getElementById(id);
@@ -17,6 +18,8 @@ const el = {
   verdict: $('verdict'), tally: $('tally'), undo: $('undo'), hint: $('hint'), demo: $('demo'),
   restart: $('restart'), share: $('share'), next: $('next'), again: $('again'),
   toast: $('toast'), canvas: $('sword'), wipe: $('wipe'),
+  pause: $('pause'), sound: $('sound'), fullscreen: $('fullscreen'), help: $('help'),
+  howto: $('howto'), howtoclose: $('howtoclose'), pauseflag: $('pauseflag'),
 };
 
 const LEVELS = ALL.length;
@@ -92,6 +95,10 @@ const view = createView(el.canvas, {
   onIllegal: (k) => say(`第 <b>${k + 1}</b> 环现在拨不动 —— 先把它下面那一环拨上、其余环拨下`),
   onSimTick: (clock, steps) => onSimTick(clock, steps),
 });
+
+// One audio engine, and `commit()` is its only trigger — so the finger, the demo and a test
+// link all get the same feedback, and one mute silences all three.
+const audio = createAudio();
 
 function setGame(level, label) {
   stopDemo('');
@@ -213,14 +220,16 @@ function render() {
 function commit(k) {
   const moved = click(app.game, k);
   if (!moved) {
+    audio.illegal();
     view.redraw();
     return false;
   }
+  const nowOn = isOn(app.game.state, k);
+  audio.clink(nowOn);
   if (app.game.done) finish();
   else {
     view.redraw();
     renderCrumbs();
-    const nowOn = isOn(app.game.state, k);
     say(`第 <b>${k + 1} 环</b> ${nowOn ? '上了剑' : '离了剑'} · 已用 ${app.game.moves} 步 · 距最优 <b>${remaining(app.game)}</b> 步`);
   }
   return true;
@@ -244,6 +253,8 @@ function finish() {
     + (rec.best === g.moves ? '<br>这是这一关的最好成绩' : '');
   el.next.hidden = !nextIndex;
   el.curtain.hidden = false;
+  audio.clear();
+  view.burst();
   render();
 }
 
@@ -364,7 +375,7 @@ el.hint.addEventListener('click', () => {
 });
 
 el.demo.addEventListener('click', () => {
-  if (demoTimer) stopDemo('演示已停止');
+  if (demoOn) stopDemo('演示已停止');
   else startDemo();
 });
 
@@ -387,6 +398,79 @@ el.share.addEventListener('click', shareLink);
 el.again.addEventListener('click', restart);
 el.next.addEventListener('click', () => go(`#/c/${Math.min(LEVELS, app.index + 1)}`));
 
+// Pause is a shell decision with four consequences, and the brief's point is that all four
+// have to happen: the view freezes its accumulator (so the sim stops advancing rather than
+// just repainting the same frame), the auto-demo stops 拨ing rings into a frozen board, the
+// audio engine is suspended rather than left in the air, and the player is told in words.
+// `window.rings.setPaused` drives this same function, so a probe measures the real path.
+function pause(on) {
+  const next = on === undefined ? !app.paused : !!on;
+  app.paused = next;
+  view.setPaused(next);
+  if (next) {
+    stopDemo('');
+    audio.suspend();
+  } else {
+    audio.resume();
+  }
+  el.pause.textContent = next ? '继续' : '暂停';
+  el.pause.setAttribute('aria-pressed', String(next));
+  el.pauseflag.hidden = !next;
+  if (next) say('暂停中 —— 环不再移动，计时与演示一并冻住');
+  return next;
+}
+
+function setMutedLabel(on) {
+  // A mute toggle, not a "sound" toggle: pressed = muted, and the words name what you get.
+  el.sound.textContent = on ? '已静音' : '音效';
+  el.sound.setAttribute('aria-pressed', String(on));
+}
+
+function toggleMuted() {
+  const on = audio.toggleMuted();
+  setMutedLabel(on);
+  toast(on ? '已静音' : '已开声音');
+  return on;
+}
+
+function toggleFullscreen() {
+  const root = document.documentElement;
+  const on = document.fullscreenElement;
+  if (on) {
+    if (document.exitFullscreen) Promise.resolve(document.exitFullscreen()).catch(() => {});
+  } else if (root.requestFullscreen) {
+    // Browsers only honour this from a real gesture; a synthetic click from a driver is not
+    // one, so the rejection is logged into the toast rather than left as an uncaught error.
+    Promise.resolve(root.requestFullscreen()).catch(() => { toast('浏览器不允许这样进全屏'); });
+  } else {
+    toast('这个浏览器没有全屏接口');
+  }
+  return !!document.fullscreenElement;
+}
+
+document.addEventListener('fullscreenchange', () => {
+  const on = !!document.fullscreenElement;
+  el.fullscreen.textContent = on ? '退出' : '全屏';
+  el.fullscreen.setAttribute('aria-pressed', String(on));
+});
+
+// The 玩法说明 is the only place the rule is written out for a human, so it is also the only
+// place a first visit is allowed to interrupt: it opens once, and `markTutorialSeen` is called
+// when it is dismissed, not when it is shown, so a reload mid-read still explains itself.
+function showHowto(open) {
+  const next = open === undefined ? el.howto.hidden : !!open;
+  el.howto.hidden = !next;
+  el.help.setAttribute('aria-pressed', String(next));
+  if (!next && !store.tutorialSeen) store.markTutorialSeen();
+  return next;
+}
+
+el.pause.addEventListener('click', () => pause());
+el.sound.addEventListener('click', toggleMuted);
+el.fullscreen.addEventListener('click', toggleFullscreen);
+el.help.addEventListener('click', () => showHowto());
+el.howtoclose.addEventListener('click', () => showHowto(false));
+
 // Wiping the save is the one destructive thing this game can do, so it asks twice instead
 // of firing on a stray click.
 let wipeArmed = false;
@@ -405,14 +489,31 @@ el.wipe.addEventListener('click', () => {
 
 window.addEventListener('hashchange', apply);
 window.addEventListener('resize', () => view.measure());
+// `u`/`h`/`r`/`d` are pinned by tools/playtest.mjs, which presses them by name, so they are
+// not up for reassignment — which is why the tutorial lives on `?` rather than on `h`.
 window.addEventListener('keydown', (ev) => {
   if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
+  if (ev.key === 'Escape') {
+    if (!el.howto.hidden) showHowto(false);
+    else if (!el.curtain.hidden) el.curtain.hidden = true;
+    return;
+  }
+  if (ev.key === '?') { showHowto(); return; }
   const k = ev.key.toLowerCase();
-  if (k === 'escape' && !el.curtain.hidden) el.curtain.hidden = true;
-  else if (k === 'u') el.undo.click();
+  if (k === ' ' || k === 'spacebar') { ev.preventDefault(); pause(); return; }
+  if (ev.key === 'Enter') {
+    // The card's own two buttons, so a keyboard player is not chased by a mouse.
+    if (!el.curtain.hidden) (el.next.hidden ? el.again : el.next).click();
+    return;
+  }
+  if (k >= '1' && k <= '9') { commit(Number(k) - 1); return; }
+  if (k === 'u') el.undo.click();
   else if (k === 'h') el.hint.click();
   else if (k === 'r') el.restart.click();
   else if (k === 'd') el.demo.click();
+  else if (k === 'm') toggleMuted();
+  else if (k === 'p') pause();
+  else if (k === 'f') toggleFullscreen();
 });
 
 view.start();
@@ -420,6 +521,9 @@ view.start();
 // are driven from the same loop, and a tab that reports itself hidden (headless Chrome does)
 // must still be able to finish a level.
 apply();
+// A first visit gets the rule explained rather than discovered by thudding into an illegal
+// click; the flag is written when the page is dismissed, so it is exactly one interruption.
+if (!store.tutorialSeen) showHowto(true);
 
 // Installability needs a registered SW, and `file://` has neither an origin to scope one to
 // nor a fetch to serve it from — so the whole branch is skipped there rather than attempted
@@ -453,7 +557,9 @@ window.rings = {
       solved: ALL.filter((l) => store.record(l.id) && store.record(l.id).solved).length,
       curtain: !el.curtain.hidden,
       demo: demoOn,
-  paused: app.paused,
+      paused: app.paused,
+      muted: audio.muted,
+      howto: !el.howto.hidden,
       n: app.game && app.game.n,
     };
   },
@@ -500,8 +606,19 @@ window.rings = {
   // What the animation sim believes: tick count, sim clock, ring travel, shake decay,
   // spark energy. This is what a frame-rate probe has to read — wall time tells it nothing.
   anim() { return view.anim(); },
-  setPaused(on) { return view.setPaused(on); },
+  // The button's own path, not the view's: pausing through here is what a player pausing
+  // through the HUD does, so a measurement made this way covers the demo and the audio too.
+  setPaused(on) { return pause(on); },
   paused() { return app.paused; },
+  audio() { return audio.stats(); },
+  mute(on) {
+    if (on === undefined) return toggleMuted();
+    audio.setMuted(on);
+    setMutedLabel(audio.muted);
+    return audio.muted;
+  },
+  howto(on) { return showHowto(on); },
+  fullscreen() { return !!document.fullscreenElement; },
   reset() { restart(); return app.game.moves; },
   store,
 };

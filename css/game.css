@@ -23,21 +23,22 @@ body {
   background: radial-gradient(120% 100% at 50% 0%, var(--bg-2), var(--bg) 60%);
   color: var(--ink); font-family: var(--mono); -webkit-font-smoothing: antialiased;
   overflow: hidden; user-select: none; cursor: default;
+  display: flex; flex-direction: column;
 }
 button { font: inherit; color: inherit; background: none; border: none; cursor: pointer; }
 
-.topbar { display: flex; align-items: center; gap: 18px; padding: 12px 18px; border-bottom: 1px solid var(--line); }
+.topbar { display: flex; align-items: center; gap: 18px; flex: none; padding: calc(12px + env(safe-area-inset-top)) calc(18px + env(safe-area-inset-right)) 12px calc(18px + env(safe-area-inset-left)); border-bottom: 1px solid var(--line); }
 .brand { font-size: 16px; letter-spacing: 0.06em; display: flex; align-items: baseline; gap: 8px; font-weight: 600; }
 .brand small { color: var(--ink-dim); font-size: 10px; letter-spacing: 0.28em; }
 .brand-mark { color: var(--brass); }
 .modes { display: flex; gap: 4px; }
-.modes button { padding: 6px 14px; font-size: 13px; color: var(--ink-dim); border: 1px solid transparent; border-radius: 6px; }
+.modes button { min-width: 44px; min-height: 44px; padding: 6px 14px; font-size: 13px; color: var(--ink-dim); border: 1px solid transparent; border-radius: 6px; }
 .modes button:hover { color: var(--ink); background: rgba(255, 255, 255, 0.04); }
 .modes button[aria-current="true"] { color: var(--brass); border-color: rgba(216, 161, 60, 0.4); background: rgba(216, 161, 60, 0.08); }
 .totals { margin-left: auto; font-size: 12px; color: var(--ink-dim); }
 .totals b { color: var(--brass); font-weight: 600; }
 
-.stage { display: grid; grid-template-columns: minmax(0, 1fr) 336px; gap: 18px; padding: 18px; height: calc(100% - 53px); }
+.stage { display: grid; grid-template-columns: minmax(0, 1fr) 336px; gap: 18px; flex: 1 1 auto; min-height: 0; padding: 18px calc(18px + env(safe-area-inset-right)) calc(18px + env(safe-area-inset-bottom)) calc(18px + env(safe-area-inset-left)); }
 .board { position: relative; display: grid; grid-template-rows: 1fr auto; min-height: 0; }
 #sword { width: 100%; height: 100%; min-height: 0; display: block; touch-action: none; }
 /* A fixed slot on purpose. The message line sits in the same grid as the canvas, so if it
@@ -47,6 +48,35 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
    reserved instead of negotiated. */
 .hint-line { height: 34px; overflow: hidden; line-height: 17px; font-size: 12px; color: var(--ink-dim); text-align: center; }
 .hint-line b { color: var(--cyan); font-weight: 600; }
+
+/* Absolutely positioned, and that is load-bearing: `.board` is a two-row grid (canvas, then
+   the reserved message line), so a HUD in normal flow would take a third row, shrink the
+   canvas box, and move the rings out from under the last measured hit test. */
+.hud { position: absolute; top: calc(8px + env(safe-area-inset-top)); right: calc(10px + env(safe-area-inset-right)); display: flex; gap: 6px; }
+.hud button { min-width: 44px; min-height: 44px; padding: 0 12px; font-size: 12px; color: var(--ink-dim); border: 1px solid var(--line); border-radius: 9px; background: rgba(16, 18, 23, 0.72); backdrop-filter: blur(3px); }
+.hud button:hover { color: var(--ink); border-color: rgba(216, 161, 60, 0.5); }
+.hud button[aria-pressed="true"] { color: var(--cyan); border-color: rgba(120, 220, 255, 0.5); background: rgba(120, 220, 255, 0.10); }
+
+.pause-flag { position: absolute; left: 50%; top: 44%; transform: translateX(-50%); padding: 10px 18px; font-size: 14px; letter-spacing: 0.08em; color: var(--brass); border: 1px solid rgba(216, 161, 60, 0.45); border-radius: 999px; background: rgba(16, 18, 23, 0.86); animation: flag-pulse 2.4s ease-in-out infinite; }
+.pause-flag[hidden] { display: none; }
+@keyframes flag-pulse { 0%, 100% { opacity: 0.82; } 50% { opacity: 1; } }
+
+.howto { position: absolute; inset: 0; display: grid; place-items: center; padding: 12px; background: rgba(12, 14, 18, 0.80); backdrop-filter: blur(4px); border-radius: 12px; overflow: auto; z-index: 3; }
+.howto[hidden] { display: none; }
+.howto-card { width: min(520px, 100%); border: 1px solid rgba(216, 161, 60, 0.35); border-radius: 14px; background: var(--bg-2); padding: 20px; animation: card-rise 0.22s ease-out; }
+@keyframes card-rise { from { transform: translateY(10px); opacity: 0; } to { transform: none; opacity: 1; } }
+.howto-card h2 { font-size: 17px; margin-bottom: 12px; letter-spacing: 0.04em; }
+.howto-rules { list-style: none; display: flex; flex-direction: column; gap: 9px; font-size: 12.5px; line-height: 1.75; color: var(--ink); counter-reset: step; }
+.howto-rules li { padding-left: 22px; position: relative; counter-increment: step; }
+.howto-rules li::before { content: counter(step); position: absolute; left: 0; top: 1px; color: var(--brass); font-size: 11px; }
+.howto-rules b { color: var(--cyan); font-weight: 600; }
+.howto-rules code, .howto-keys dt { color: var(--brass); font-size: 11px; }
+.howto-keys { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); font-size: 11.5px; }
+.howto-keys > div { display: flex; justify-content: space-between; gap: 10px; }
+.howto-keys dt { white-space: nowrap; }
+.howto-keys dd { color: var(--ink-dim); text-align: right; }
+.howto-actions { margin-top: 16px; display: flex; justify-content: flex-end; }
+.howto-actions button { min-height: 44px; padding: 0 18px; font-size: 13px; color: var(--brass); border: 1px solid rgba(216, 161, 60, 0.6); border-radius: 9px; background: rgba(216, 161, 60, 0.10); }
 
 .panel { border: 1px solid var(--line); border-radius: 12px; background: var(--panel); padding: 16px; display: flex; flex-direction: column; gap: 14px; overflow: auto; }
 .crumbs { font-size: 12px; color: var(--ink-dim); letter-spacing: 0.04em; }
@@ -63,14 +93,14 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 .readout .over dd { color: var(--cyan); }
 
 .controls { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
-.controls button { padding: 10px 2px; font-size: 12px; border: 1px solid var(--line); border-radius: 9px; background: rgba(255, 255, 255, 0.03); color: var(--ink); }
+.controls button { min-height: 44px; padding: 10px 2px; font-size: 12px; border: 1px solid var(--line); border-radius: 9px; background: rgba(255, 255, 255, 0.03); color: var(--ink); }
 .controls button:hover:not(:disabled) { border-color: rgba(216, 161, 60, 0.5); color: var(--brass); }
 .controls button:disabled { opacity: 0.35; cursor: not-allowed; }
 .controls button[aria-pressed="true"] { color: var(--cyan); border-color: rgba(120, 220, 255, 0.5); background: rgba(120, 220, 255, 0.08); }
 
 .shelf { display: flex; flex-wrap: wrap; gap: 6px; }
 .shelf .tier { width: 100%; font-size: 11px; color: var(--ink-dim); margin-top: 6px; letter-spacing: 0.1em; }
-.shelf button { min-width: 34px; padding: 7px 6px; font-size: 12px; border: 1px solid var(--line); border-radius: 7px; color: var(--ink-dim); }
+.shelf button { min-width: 44px; min-height: 44px; padding: 7px 6px; font-size: 12px; border: 1px solid var(--line); border-radius: 7px; color: var(--ink-dim); }
 .shelf button:hover { color: var(--ink); border-color: rgba(226, 232, 240, 0.3); }
 .shelf button.done { color: var(--brass); border-color: rgba(216, 161, 60, 0.35); }
 .shelf button.perfect { color: var(--cyan); border-color: rgba(120, 220, 255, 0.35); }
@@ -82,7 +112,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 .about summary { cursor: pointer; letter-spacing: 0.08em; }
 .about code { color: var(--brass); font-size: 10px; }
 .about .save { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px; }
-.about #wipe { font-size: 10px; padding: 5px 9px; color: var(--ink-dim); border: 1px solid rgba(216, 161, 60, 0.4); border-radius: 7px; }
+.about #wipe { min-width: 44px; min-height: 44px; font-size: 10px; padding: 5px 9px; color: var(--ink-dim); border: 1px solid rgba(216, 161, 60, 0.4); border-radius: 7px; }
 
 .curtain { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(12, 14, 18, 0.72); backdrop-filter: blur(3px); border-radius: 12px; }
 .curtain[hidden] { display: none; }
@@ -92,10 +122,11 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 .tally { font-size: 12px; color: var(--ink-dim); line-height: 1.8; }
 .tally b { color: var(--ink); }
 .curtain-actions { display: flex; gap: 8px; margin-top: 16px; }
-.curtain-actions button { flex: 1; padding: 10px; font-size: 13px; border: 1px solid var(--line); border-radius: 9px; }
+.curtain-actions button { flex: 1; min-height: 44px; padding: 10px; font-size: 13px; border: 1px solid var(--line); border-radius: 9px; }
 .curtain-actions .primary { border-color: rgba(216, 161, 60, 0.6); color: var(--brass); background: rgba(216, 161, 60, 0.1); }
 
-.toast { position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%); padding: 9px 16px; border: 1px solid var(--line); border-radius: 999px; background: var(--bg-2); font-size: 12px; color: var(--brass); }
+.toast { position: fixed; left: 50%; bottom: calc(26px + env(safe-area-inset-bottom)); transform: translateX(-50%); padding: 9px 16px; border: 1px solid var(--line); border-radius: 999px; background: var(--bg-2); font-size: 12px; color: var(--brass); animation: toast-rise 0.18s ease-out; }
+@keyframes toast-rise { from { opacity: 0; margin-bottom: -8px; } to { opacity: 1; margin-bottom: 0; } }
 .toast[hidden] { display: none; }
 
 @media (max-width: 820px) {
@@ -104,4 +135,13 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   .board { height: 58vh; min-height: 320px; }
   .topbar { flex-wrap: wrap; gap: 10px; }
   .totals { margin-left: 0; width: 100%; }
+}
+
+/* The three animations this file actually defines. The canvas has its own switch:
+   js/view.js reads the same media query through matchMedia and stops the ring shake, the
+   拨环 puff and the win burst there, because those are drawn, not styled. */
+@media (prefers-reduced-motion: reduce) {
+  .pause-flag { animation: none; }
+  .howto-card { animation: none; }
+  .toast { animation: none; }
 }
