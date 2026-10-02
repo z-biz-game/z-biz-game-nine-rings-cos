@@ -21,14 +21,14 @@ jobs:
       - uses: actions/checkout@v4
       # No bundler and no dependencies: the game ships plain ES modules, so the site is a
       # file copy. Only these paths are reachable from index.html — keep the server, the
-      # electron shell, the bake tool and the tests out of the artifact. The 512-position
-      # state graph is built by js/core/solve.js at boot, so no generated asset has to be
-      # carried here beyond js/data/levels.js, which is a source file like any other.
+      # electron shell, the bake tool and the tests out of the artifact. The bitmaps are
+      # copied because the manifest, the favicon chain and og:image name them: an install
+      # prompt needs icons that answer 200, and sw.js has to be same-origin with the shell.
       - name: Assemble static site
         run: |
           mkdir _site
-          cp index.html _site/
-          cp -r css js _site/
+          cp index.html manifest.webmanifest sw.js _site/
+          cp -r css js assets _site/
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

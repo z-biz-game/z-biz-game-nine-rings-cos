@@ -401,6 +401,19 @@ view.start();
 // must still be able to finish a level.
 apply();
 
+// Installability needs a registered SW, and `file://` has neither an origin to scope one to
+// nor a fetch to serve it from — so the whole branch is skipped there rather than attempted
+// and rejected. Registration is a progressive enhancement: a sandbox that has no
+// `navigator.serviceWorker` (node harnesses do not) loses the offline cache and nothing else.
+if (/^https?:$/.test(location.protocol) && 'serviceWorker' in navigator) {
+  const swUrl = new URL('sw.js', document.baseURI).href;
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register(swUrl, { scope: './' }).catch(() => {
+      /* refused: insecure origin, private mode, or a harness without a SW registry */
+    });
+  });
+}
+
 window.rings = {
   version: 1,
   get state() {
