@@ -454,14 +454,13 @@ document.addEventListener('fullscreenchange', () => {
   el.fullscreen.setAttribute('aria-pressed', String(on));
 });
 
-// The 玩法说明 is the only place the rule is written out for a human, so it is also the only
-// place a first visit is allowed to interrupt: it opens once, and `markTutorialSeen` is called
-// when it is dismissed, not when it is shown, so a reload mid-read still explains itself.
+// Opening it is what counts as "seen". It is never opened *for* the player at boot: a modal
+// over the board would eat the first clicks, which the CDP gate drives with real mouse events.
 function showHowto(open) {
   const next = open === undefined ? el.howto.hidden : !!open;
   el.howto.hidden = !next;
   el.help.setAttribute('aria-pressed', String(next));
-  if (!next && !store.tutorialSeen) store.markTutorialSeen();
+  if (next && !store.tutorialSeen) store.markTutorialSeen();
   return next;
 }
 
@@ -521,9 +520,9 @@ view.start();
 // are driven from the same loop, and a tab that reports itself hidden (headless Chrome does)
 // must still be able to finish a level.
 apply();
-// A first visit gets the rule explained rather than discovered by thudding into an illegal
-// click; the flag is written when the page is dismissed, so it is exactly one interruption.
-if (!store.tutorialSeen) showHowto(true);
+// A first visit is told where the rule is, in the line that is already reserved for messages:
+// it never covers the board, and the first 拨环 replaces it with real feedback.
+if (!store.tutorialSeen) say('第一次玩？按 <b>?</b> 看规则与键位');
 
 // Installability needs a registered SW, and `file://` has neither an origin to scope one to
 // nor a fetch to serve it from — so the whole branch is skipped there rather than attempted
