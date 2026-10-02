@@ -82,10 +82,32 @@ function savedWith(record) {
 
 const good = { solved: true, best: 6, plays: 2, perfect: true };
 
+// One junky save, shaped the way real damage arrives: not a broken file, but a file with one
+// bad row in it. A `null` record, a record missing `plays`, a record that is a bare string, a
+// record with an impossible move count, plus a bad daily row and a bad stats field.
+const junkSave = {
+  records: {
+    'novice-01': good,
+    'novice-02': null,
+    'novice-03': { solved: true, best: 9 },
+    'novice-04': 'novice-04 was a string',
+    'novice-05': { solved: true, best: 1e9, plays: 2, perfect: true },
+    'novice-06': good,
+  },
+  daily: {
+    '2026-09-26': { id: 'daily-2026-09-26', at: 5 },
+    '2026-09-27': null,
+  },
+  unlocked: 1e9,
+  stats: { solves: 3, perfect: 'lots', clicks: 12, hints: 0 },
+};
+
 const blankStore = await makeInstance(new FakeStorage({}));
 const corruptStore = await makeInstance(new FakeStorage({ [KEY]: '{not json' }));
 const textStore = await makeInstance(new FakeStorage({ [KEY]: '"just a string"' }));
 const partialStore = await makeInstance(new FakeStorage({ [KEY]: JSON.stringify({ records: { 'novice-01': good } }) }));
+const junkStore = await makeInstance(new FakeStorage({ [KEY]: JSON.stringify(junkSave) }));
+const tutorialDisk = await makeInstance(new FakeStorage({}));
 const blockedStore = await makeInstance(new FakeStorage({ [KEY]: savedWith(good) }).deny());
 
 // Four instances over one disk: the reload story, start to finish.
@@ -215,6 +237,31 @@ test('no window at all is the same story', () => {
   // testable without a DOM.
   eq(blankStore.store.solve('novice-05', { moves: 35, par: 35, hints: 0 }).best, 35, 'the store works headless');
   eq(blankStore.store.record('novice-05').perfect, true);
+});
+
+test('one bad record costs that record, not the save', () => {
+  use(junkStore.fake);
+  eq(junkStore.store.record('novice-01'), good, 'the neighbours of a null record survive');
+  eq(junkStore.store.record('novice-06'), good, 'and so does the last row in the file');
+  eq(junkStore.store.record('novice-02'), null, 'the null record is gone');
+  eq(junkStore.store.record('novice-03'), null, 'a record missing its play count is not half-a-record');
+  eq(junkStore.store.record('novice-04'), null, 'a record that is a string is not a record');
+  eq(junkStore.store.record('novice-05'), null, 'and a best of 1e9 is junk, not a record');
+  eq(junkStore.store.dropped, 6, 'four records, one daily row and one stats field — six rows dropped, and said out loud');
+  eq(Object.keys(junkStore.store.records).sort(), ['novice-01', 'novice-06'], 'exactly the two honest records came back');
+  eq(junkStore.store.dailyDone('2026-09-26').id, 'daily-2026-09-26', 'the good daily row survives its bad neighbour');
+  eq(junkStore.store.dailyDone('2026-09-27'), null, 'and the null one is dropped');
+  eq(junkStore.store.stats, { solves: 3, perfect: 0, clicks: 12, hints: 0 }, 'a stats field that is a word defaults instead of poisoning the tally');
+  eq(junkStore.store.unlocked, 1, 'an impossible unlock pointer is refused rather than trusted');
+  eq(junkStore.store.solve('novice-02', { moves: 7, par: 9, hints: 0 }).best, 7, 'a dropped slot is playable again');
+});
+
+test('the tutorial flag is remembered', () => {
+  use(tutorialDisk.fake);
+  eq(tutorialDisk.store.tutorialSeen, false, 'a first visit has not seen the explanation');
+  tutorialDisk.store.markTutorialSeen();
+  eq(tutorialDisk.store.tutorialSeen, true, 'and once it is shown, it is marked');
+  eq(disk(tutorialDisk.fake).tutorial, true, 'written through to disk, not just the session');
 });
 
 run();
