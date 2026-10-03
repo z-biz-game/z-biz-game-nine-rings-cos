@@ -54,6 +54,26 @@
       <button id="btn-fullscreen" type="button" aria-pressed="false" title="全屏（F）">全屏</button>
     </div>
     <div class="shelf" id="shelf"></div>
+    <!--
+      玩法说明。下面每一条都对着 js/core/game.js 的 canToggle() 写，那是本仓**唯一**
+      的合法性谓词（文件头原话："That rule is canToggle below — the single source of
+      legality in this repo"）。写这个块之前先读那条谓词，不要按"九连环常识"另写一份。
+      改 canToggle 时这个块要跟着改——它不是第二套规则，是同一条谓词的人话。
+    -->
+    <details class="about">
+      <summary>玩法：什么时候能拨哪个环</summary>
+      <p><b>目标</b>：把九个环<b>全部从剑上拨下来</b>。全部离剑时状态是 <code>SOLVED = 0</code>（<code>js/core/game.js:12</code>）。</p>
+      <p><b>动作只有一个</b>：拨一个环上剑或离剑。一个位置就是 <code>n</code> 个比特——第 k 位是第 k+1 个环，1 表示在剑上。整个游戏只有一条规则决定"这次点击算不算数"，就是 <code>canToggle()</code>：</p>
+      <ul>
+        <li><b>第 1 个环</b>永远可以拨。</li>
+        <li>要拨<b>第 k 个环</b>（k ≥ 2），必须同时满足两件事：<br>
+          ① <b>第 k−1 个环在剑上</b>；<br>
+          ② <b>第 1 到第 k−2 个环全部离剑</b>（<code>state &amp; ((1 &lt;&lt; (k-1)) - 1) === 0</code>）。</li>
+      </ul>
+      <p>也就是说：<b>要动一个环，得先把它前面那个环挂上去，而更前面的环必须全清空</b>。不满足时点了不算数，局面原样不动（<code>js/main.js:210</code> 那句 <code>if (!moved) { view.redraw(); return false; }</code>）。</p>
+      <p><b>怎么操作</b>：点剑上的环。手指点画布、测试链接的复现、演示走的路线，最终都汇到 <code>commit(k)</code> 这一处（<code>js/main.js:209</code>），受同一条规则管——所以你看到的演示和提示不会走出一条你走不出的棋。</p>
+      <p><b>为什么它难</b>：这条规则让 512 个状态连成<b>一条路径</b>而不是一团乱麻（<code>DESIGN.md</code> 1.2），于是"最少几步"不是估值也不是启发式，是查一次数组。</p>
+    </details>
     <details class="about">
       <summary>这一关的数字从哪来</summary>
       <p>九个环在剑上只有 <code>2^9 = 512</code> 种状态，所以 <code>js/core/solve.js</code> 把整张状态图穷尽走完（一次 BFS，512 个结点），每个状态的<em>最少拨环次数</em>都是查表得来的事实。这个数还与 classical 闭式公式 <code>(2^(n+1) − (n 奇 ? 1 : 2)) / 3</code> 在 n = 1..12 上逐一对账（<code>node test/solve.test.mjs</code>），搜索器不是自己给自己打分。</p>
