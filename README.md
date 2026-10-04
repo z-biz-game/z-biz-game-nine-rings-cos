@@ -111,7 +111,7 @@ js/view.js            canvas 2D 绘制（剑 + 九个环的上下位移）+ 指�
 js/main.js            路由、DOM、存档写入、window.rings 测试钩子
 server.cjs            零依赖静态服务器
 electron/main.cjs     桌面壳（复用同一个服务器）
-tools/bake.mjs        出题 → 复验 → 写 js/data/levels.js，并打印实测直方图 / tools/assemble-site / tools/deploy-set / tools/deploy-set-selftest
+tools/bake.mjs        出题 → 复验 → 写 js/data/levels.js，并打印实测直方图
 tools/playtest.mjs    零依赖 CDP 驱动，真实鼠标键盘事件
 tools/verify.sh       一次性验收门
 tools/harness.mjs     微型测试框架，node 与浏览器套件输出形状一致
