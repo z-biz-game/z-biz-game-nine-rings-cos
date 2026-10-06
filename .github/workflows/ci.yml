@@ -28,6 +28,12 @@ jobs:
         run: for f in js/*.js js/*/*.js server.cjs electron/main.cjs tools/*.mjs test/*.mjs; do node --check "$f"; done
       - name: Suites
         run: for f in test/*.test.mjs; do echo "::group::$f"; node "$f"; echo "::endgroup::"; done
+      # The difficulty leg. `npm run balance` existed, and README quoted its output as the source
+      # of every par band — but no CI surface ever ran the command, so the difficulty claim was
+      # enforced only by a human remembering to type it. Measured cost of the full default run
+      # (4 bands x 500 seeds + 64-level replay): 0.17s, so CI runs it exactly as locals do.
+      - name: Balance (难度台架)
+        run: npm run balance
       # 部署集闸：按 tools/assemble-site.sh 那份清单真拷一遍产物，要求页面会去要的东西
       # 都在里面。这一仓曾经因为清单落后于页面而线上 404 自己的 manifest/sw.js/图标，
       # 而本地一切全绿——因为本地根本没有「按清单拷」这一步。
