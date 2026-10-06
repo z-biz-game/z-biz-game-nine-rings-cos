@@ -27,7 +27,7 @@ jobs:
       - name: Syntax
         run: npm run check
       - name: Suites
-        run: for f in test/*.test.mjs; do echo "::group::$f"; node "$f"; echo "::endgroup::"; done
+        run: npm run unit
       # The difficulty leg. `npm run balance` existed, and README quoted its output as the source
       # of every par band — but no CI surface ever ran the command, so the difficulty claim was
       # enforced only by a human remembering to type it. Measured cost of the full default run
