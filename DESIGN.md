@@ -188,7 +188,7 @@ the file, and they do not overlap" 再比对一次。改了规则却忘了让这
 
 ## 6. 画面：把规则画对就是玩法教学
 
-`js/view.js` 只有两行是"语义"的：`settle()`（`:100`）把每个环的目标行设为 `isOn(state, k) ? 0 : 1`，
+`js/view.js` 只有两行是"语义"的：`settle()`（`js/view.js:110`）把每个环的目标行设为 `isOn(state, k) ? 0 : 1`，
 以及 `drop[k]` 向目标插值。理由写在文件头注释里：**在上的环必须穿在杆上、拨下来的环必须挂在杆下，
 而且环要真的在两行之间移动** —— 玩家看的是这个位移才知道规则是什么。
 
@@ -197,7 +197,7 @@ the file, and they do not overlap" 再比对一次。改了规则却忘了让这
 没有这个标志 Chrome 每次回读都会在 console 打一条 warning，而 `verify.sh` 有
 "console 必须干净"的断言 ——  warning 会淹没真错误。
 
-`ringPoint(k)`（`js/view.js:340`）返回**动画后的实际位置**（含 `on`/`ring`），
+`ringPoint(k)`（`js/view.js:360`）返回**动画后的实际位置**（含 `on`/`ring`），
 这是 `@pointer` 能派发真实点击的前提；它也顺带证明了文案与画面读的是同一个 `isOn`。
 
 ---
@@ -214,7 +214,7 @@ the file, and they do not overlap" 再比对一次。改了规则却忘了让这
 
 页面内注入的断言可以证明 `click()` 与 `routeToZero()` 正确，**证明不了手指点得着环**。
 `@pointer`（`tools/playtest.mjs:209`）跑在 Node 侧：坐标来自页面里的 `window.rings.ringPoint(k)`，
-事件是 `Input.dispatchMouseEvent` 的 press/release（`mouseAt`，`:53`；`tapRingAt`，`:58`）。它断言：
+事件是 `Input.dispatchMouseEvent` 的 press/release（`mouseAt` 在 `tools/playtest.mjs:53`；`tapRingAt` 在 `tools/playtest.mjs:58`）。它断言：
 
 - 非法环（被规则拒绝的那个）点下去不计步、不改距离、shell 说出"拨不动"、抖动衰减后画面逐像素回到原样；
 - 合法环点一下计一步、只动那一环、随后画面确实变了；
@@ -224,7 +224,7 @@ the file, and they do not overlap" 再比对一次。改了规则却忘了让这
   纪录落在 9；
 - 键盘 `u`/`h`/`r`/`d` 与面板按钮走同一条 `commit()`。
 
-要在命令行上亲手复现一遍这张截图：`node tools/playtest.mjs tap 0`（`:138`），
+要在命令行上亲手复现一遍这张截图：`node tools/playtest.mjs tap 0`（`tools/playtest.mjs:138`），
 它用的就是 `@pointer` 那套原语，注入的 JS 只负责报坐标。
 
 ### 7.3 导航之后等的是 shell，不是秒表

@@ -72,6 +72,10 @@ if [ -z "${SKIP_UNIT:-}" ]; then
   # 不开浏览器，所以本地跑全量、不缩样本。
   echo "=== balance ==="
   npm run balance || FAILED=1
+  # 文档行号对账：交付报告与 README/DESIGN 里印着的每个「文件:行号」都当场读回来核。
+  # 它不进 npm run unit 那个 test/*.test.mjs 循环——README 那句「六个 node 测试套件」数的是那一层。
+  echo "=== doctest ==="
+  node tools/docs-test.mjs || FAILED=1
   # 部署集闸：ci.yml 跑这两步、本地整闸以前一次都不跑。缺这一步就是「本地全绿、线上 404 自己的
   # manifest / sw.js / 图标」这一整类坏法。它不碰 Chrome，也不读页面，纯查产物。
   echo "=== deploy-set ==="

@@ -32,6 +32,9 @@ jobs:
       # of every par band — but no CI surface ever ran the command, so the difficulty claim was
       # enforced only by a human remembering to type it. Measured cost of the full default run
       # (4 bands x 500 seeds + 64-level replay): 0.17s, so CI runs it exactly as locals do.
+      - name: Doc citations reconcile (文档行号对账)
+        run: node tools/docs-test.mjs
+
       - name: Balance (难度台架)
         run: npm run balance
       # 部署集闸：按 tools/assemble-site.sh 那份清单真拷一遍产物，要求页面会去要的东西
