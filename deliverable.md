@@ -37,20 +37,20 @@
 
 | 文件 | 作用 | 由谁验证 |
 |---|---|---|
-| `index.html` | 壳：顶栏 / `#sword` 画布 / 右侧面板 / 通关卡；`<link rel="icon" href="data:,">` | `tools/playtest.mjs:224-226` 的 `@pointer` 第一条逐个 `getElementById` 20 个 id（`sword modes totals crumbs readout hintline curtain stars verdict tally again next undo hint demo restart share shelf wipe toast`）；`@boot` 第一条（`playtest.mjs:386`）。favicon 那条由 `tools/verify.sh:119` 的 "console 干净" 检查覆盖——本次实跑末段是 `=== console ===` + `(none)` |
-| `css/game.css` | 全部样式，单文件 | `@boot` "the canvas is laid out, not the unstyled 300x150 default"（`playtest.mjs:396`）；命令同 §5.3 |
-| `js/view.js` | canvas 绘制（剑 + 9 环两行之间的位移）、指针手势、`ringPoint(k)` | `@boot`(17)、`@play`(17)、`@pointer`(24)——真实 `Input.dispatchMouseEvent` 的坐标就取自 `js/view.js:340` 的 `ringPoint`；另有 `test/game.test.mjs:194` "no shipped shell or view re-derives the bit layout" 直接读它的源码 |
+| `index.html` | 壳：顶栏 / `#sword` 画布 / 右侧面板 / 通关卡；`<link rel="icon" href="data:,">` | `tools/playtest.mjs:224-226` 的 `@pointer` 第一条逐个 `getElementById` 20 个 id（`sword modes totals crumbs readout hintline curtain stars verdict tally again next undo hint demo restart share shelf wipe toast`）；`@boot` 第一条（`tools/playtest.mjs:386`）。favicon 那条由 `tools/verify.sh:130-135` 的 "console 干净" 检查覆盖——本次实跑末段是 `=== console ===` + `(none)` |
+| `css/game.css` | 全部样式，单文件 | `@boot` "the canvas is laid out, not the unstyled 300x150 default"（`tools/playtest.mjs:396`）；命令同 §5.3 |
+| `js/view.js` | canvas 绘制（剑 + 9 环两行之间的位移）、指针手势、`ringPoint(k)` | `@boot`(17)、`@play`(17)、`@pointer`(24)——真实 `Input.dispatchMouseEvent` 的坐标就取自 `js/view.js:360` 的 `ringPoint`；本仓另有一条直接读它的源码的断言 `test/game.test.mjs:194`（"no shipped shell or view re-derives the bit layout"） |
 | `js/main.js` | 路由、DOM、存档写入、`window.rings`（`js/main.js:404-458`） | `@routes`(17) + `@save`(13) + `@pointer`(24)；源码扫描同上 |
 
 ### js/core/*（纯函数层，`node --test` 直接 import）
 
 | 文件 | 作用 | 由谁验证 |
 |---|---|---|
-| `js/core/game.js` | 唯一合法性谓词 `canToggle`（`:36`）、`isOn`（`:23`）、`click`（`:86`）、undo/reset/hint/grade | `test/game.test.mjs`(12)、`test/solve.test.mjs`(15)、`test/formula.test.mjs`(6) → `node --test test/` |
-| `js/core/solve.js` | `buildTable(n,root)` 穷尽 BFS（`:39`）、`table()` 缓存（`:127`）、`formula(n)`（`:30`）、`bandCuts`（`:140`） | `test/solve.test.mjs`（含 "the exhaustive sweep really covers all 512 positions, and is fast" 的 `ms < 20`）、`test/formula.test.mjs`；n=13/14 的一次性对账命令见 §4.3 |
-| `js/core/make.js` | 难度带在模块加载时由直方图现算（`:39`）、`statesAtPar`（`:47`）、`makeLevel`（`:56`）、`makeSet` | `test/make.test.mjs`(10)；生成器实测行见 §4.1 的 `generator:` 输出 |
-| `js/core/library.js` | 战役 64 关查表 + `validateLevel`（`:33`）+ `dailyLevel`/`randomLevel` + `stats()` | `test/library.test.mjs`(9)（逐行复算 `par === dist[state]`）；产物重写门是 `node tools/bake.mjs` |
-| `js/core/storage.js` | localStorage 存档，`store`（`:61`）；无 window / 存储被拒时退化内存 | `test/storage.test.mjs`(10)；浏览器侧 `@save`(13) + `@reloaded`(6) |
+| `js/core/game.js` | 唯一合法性谓词 `canToggle`（`js/core/game.js:36`）、`isOn`（`js/core/game.js:23`）、`click`（`js/core/game.js:86`）、undo/reset/hint/grade | `test/game.test.mjs`(12)、`test/solve.test.mjs`(15)、`test/formula.test.mjs`(6) → `node --test test/` |
+| `js/core/solve.js` | `buildTable(n,root)`（`js/core/solve.js:39`）的穷尽 BFS、`table()`（`js/core/solve.js:127`）缓存、`formula(n)`（`js/core/solve.js:30`）、`bandCuts`（`js/core/solve.js:140`） | `test/solve.test.mjs`（含 "the exhaustive sweep really covers all 512 positions, and is fast" 的 `ms < 20`）、`test/formula.test.mjs`；n=13/14 的一次性对账命令见 §4.3 |
+| `js/core/make.js` | 难度带在模块加载时由直方图现算（`js/core/make.js:39`）、`statesAtPar`（`js/core/make.js:47`）、`makeLevel`（`js/core/make.js:56`）、`makeSet` | `test/make.test.mjs`(10)；生成器实测行见 §4.1 的 `generator:` 输出 |
+| `js/core/library.js` | 战役 64 关查表 + `validateLevel`（`js/core/library.js:33`）+ `dailyLevel`/`randomLevel` + `stats()` | `test/library.test.mjs`(9)（逐行复算 `par === dist[state]`）；产物重写门是 `node tools/bake.mjs` |
+| `js/core/storage.js` | localStorage 存档，`store`（`js/core/storage.js:61`）；无 window / 存储被拒时退化内存 | `test/storage.test.mjs`(10)；浏览器侧 `@save`(13) + `@reloaded`(6) |
 | `js/core/rng.js` | FNV-1a `hashSeed` + `mulberry32`（契约 §1 要求从 gridlock 原样搬运） | **无独立测试文件**。间接证据：`test/library.test.mjs:130` "a shared pick is the same pick, on any device"、`test/make.test.mjs:80` "a seed is a level"，浏览器侧 `@routes` 的 "the daily route is the same puzzle twice" / "#/random/\<band\> stays in its band and repeats itself" |
 | `js/data/levels.js` | 构建期产物：`HISTOGRAM`、`TIERS_META`、64 行带实测 par 的关卡 | `test/library.test.mjs`（对磁盘上的行独立复算）+ `node tools/bake.mjs`（`tools/bake.mjs:63-68` 两条款，不满足直接 throw） |
 
@@ -59,14 +59,14 @@
 | 文件 | 作用 | 由谁验证 |
 |---|---|---|
 | `server.cjs` | 零依赖静态服务器，默认端口 5181（`server.cjs:48,59`） | `tools/verify.sh:32` 起它、`:54-59` 轮询 `$BASE` 才继续；本次实跑通过（`opened http://127.0.0.1:5181/` + `boot level: novice-01`） |
-| `electron/main.cjs` | 桌面壳，复用 `server.cjs` 且 `port: 0`（`:7-8`） | **只有语法门禁**：`npm run check` 的 `node --check electron/main.cjs`。**未真实启动过**（仓内不装 electron，README.md:130 已声明），见 §6-1 |
+| `electron/main.cjs` | 桌面壳，复用 `server.cjs` 且 `port: 0`（`electron/main.cjs:7-8`） | **只有语法门禁**：`npm run check` 的 `node --check electron/main.cjs`。**未真实启动过**（仓内不装 electron，README.md:130 已声明），见 §6-1 |
 
 ### tools/ 与 test/
 
 | 文件 | 作用 | 由谁验证 |
 |---|---|---|
 | `tools/bake.mjs` | 量空间 → 量生成器 → 出题并复验 → 写 `js/data/levels.js` | 本次实跑，输出见 §4.1；其产物再由 `node --test test/library.test.mjs` 独立复算 |
-| `tools/harness.mjs` | 微型框架：`test/ok/eq/run`，node 与浏览器套件同形状 | 每个 `rows: N fail: M` 行都是它打的（§5.2 的 6 行）；`tools/verify.sh:95-116` 按同一形状解析浏览器段 |
+| `tools/harness.mjs` | 微型框架：`test/ok/eq/run`，node 与浏览器套件同形状 | 每个 `rows: N fail: M` 行都是它打的（§5.2 的 6 行）；`tools/verify.sh:108-129` 按同一形状解析浏览器段 |
 | `tools/playtest.mjs` | 零依赖 CDP 驱动：`open/nav/eval/tap/shot/logs`，`waitShell` 轮询、`@pointer` 真鼠标 | 本次实跑（经 verify.sh）；单条可手工复现：`node tools/playtest.mjs tap 0` |
 | `tools/verify.sh` | 一次性验收门（独立 profile、双端点轮询、`trap cleanup EXIT` 里 `wait`、花括号计数截 JSON、支持 `SKIP_UNIT=1`） | 本次实跑，原文见 §5.3 |
 | `test/fixture.mjs` | 手算期望：`HAND`（a(k)=2^k−1 的递推 + 手写路线）、`ILLEGAL`、`LEGAL`、`FULL9` | 被 `test/solve.test.mjs` / `test/game.test.mjs` import；"no shorter click sequence clears those positions (exhaustive)" 用另一套算法（深度受限 DFS）反证更短解不存在 |
@@ -113,13 +113,13 @@
 | 7 | **[本仓真踩过的]** 场景体（写在模板字面量里的页面源码）里正则用单反斜杠 `\/` | 单反斜杠被模板吃掉，页面收到未闭合的正则字面量，整段 `@save` 在**解析期**就抛 `SyntaxError: Invalid regular expression flags`，一条断言都没跑 | 硬规矩"体内不写反引号、不写单反斜杠斜杠"，注释在 `tools/playtest.mjs:604-608`；实跑 `=== @save === rows: 13 fail: []`（§5.3） |
 | 8 | **[本仓真踩过的]** 六段共用同一页面时不清 `window.__lastRows` | 上一段的行缓冲还在：某段抛在解析期时，聚合器把**上一段的 rows** 当本段成绩打印（`@save` 曾报 `rows: 18` 而它实际一条没跑）——坏掉的台架看起来是绿的 | `tools/playtest.mjs:170` 每段执行前 `window.__lastRows = null`，抛错时补一条 `@<name> threw` 的失败行（`:173-177`） |
 | 9 | **[本仓真踩过的]** 三条断言用 `/已通 <b>N<\/b>/` 去匹配 `.textContent` | `textContent` 按定义不含标记，所以无论屏幕印什么都不可能为真。改的是台架不是期望值：`innerHTML`，**期望字符串一个字没动** | `tools/playtest.mjs:588/618/640` 用 `.innerHTML`；本次 `@save`/`@reloaded` 全绿 |
-| 10 | **[家族教训]** `Page.navigate` 之后固定 `sleep()` | 本地够用、线上不够：`window.rings` 还没出现就开始断言，canvas 停在未样式的 300×150，一次无辜部署会产三条假故障 | `waitShell()` 轮询 `window.rings.state.id`（`tools/playtest.mjs:116-128`）；`tools/verify.sh:79-84` 同口径轮询 boot 关卡 |
-| 11 | **[风险类，未记录为已发生]** `canvas.getContext('2d')` 未带 `willReadFrequently` | 台架用 `getImageData` 回读像素证明"合法点击改画面、非法点击不改"；没这个标志 Chrome 每次回读打一条 warning，会淹没"console 必须干净"那条断言 | `js/view.js:35`；`tools/verify.sh:119-123` 的检查 + 本次 `=== console === (none)` |
+| 10 | **[家族教训]** `Page.navigate` 之后固定 `sleep()` | 本地够用、线上不够：`window.rings` 还没出现就开始断言，canvas 停在未样式的 300×150，一次无辜部署会产三条假故障 | `waitShell()` 轮询 `window.rings.state.id`（`tools/playtest.mjs:116-128`）；`tools/verify.sh:91-97` 同口径轮询 boot 关卡 |
+| 11 | **[风险类，未记录为已发生]** `canvas.getContext('2d')` 未带 `willReadFrequently` | 台架用 `getImageData` 回读像素证明"合法点击改画面、非法点击不改"；没这个标志 Chrome 每次回读打一条 warning，会淹没"console 必须干净"那条断言 | `js/view.js:35`；`tools/verify.sh:132-135` 的检查 + 本次 `=== console === (none)` |
 | 12 | **[家族教训]** 没有 `<link rel="icon" href="data:,">` | favicon 404 是纯噪音，但它会踩掉"console 干净"这条断言 | `index.html:8`；同上 |
 | 13 | **[本仓真踩过的]** headless 把自己报成 hidden，于是接了 `visibilitychange` 去暂停 rAF | 通关动画与胜利卡片由同一个 rAF 循环驱动，一暂停测试永远看不到通关 | `js/main.js:398-402` 显式不接该事件（注释说明理由）；钉在 `@pointer` "the sword is empty and the level is won" + "the win card goes up with three stars" |
 | 14 | **[本仓真写过、后删]** `solve.js` 里曾有 `distOf(state, n)`、`library` 侧曾有 `tableForLevel(n)`、`game.js` 侧曾有 `stateOfBits(bits)` | 一个缓存两个名字 ⇒ 未来编辑会让它们各自长身体；`distOf(state, n)` 邀请调用方传一个与所玩关卡不一致的 `n`；位置本身就是掩码，`bits → state` 只会被"反过来验 `bitsOf`"的东西要，而那处（`test/solve.test.mjs` "bitsOf and toggle round-trip a position"）故意手搓期望掩码，好让 shipped helper 不当自己的 oracle | 三个都已删除而不是接线（注释在 `js/core/solve.js:117-125`、`js/core/game.js:60-64`）。替代证据：`test/solve.test.mjs:188` "a distance belongs to the bits, not to the ring count named" 量遍 n=1..9 |
 | 15 | **[风险类，未记录为已发生]** `reset()` 只清 localStorage、留内存缓存（DESIGN §5 记为隐患） | 陈旧缓存比不清档更糟：屏幕说清了、纪录还会回来 | `js/core/storage.js:113-121` 连 `cache` 一起换；`test/storage.test.mjs:170` "a save survives a reload, and a wipe really wipes" + `@save` "清空存档 takes two clicks and clears everything"、`@reloaded` "and a reset leaves nothing on disk for the next visitor" |
-| 16 | **[风险类，未记录为已发生]** 环数上界若做**钳制**而不是抛错（`buildTable(n)` / `formula(n)` 的边界） | 钳制会把越界调用静默变成"算了个小 n"，屏幕上照样印一个数、只是答非所问。本仓 `buildTable` 越界**直接 throw**（n ≤ 16），`formula` 钳在 1 ≤ n ≤ 51（`Number` 到 n=51 才失真） | `js/core/solve.js:31,40`；`@boot` "and the page refuses an out-of-range ring count"（`playtest.mjs:423`）；上界之外刻意不做（§6-10 与 `DESIGN.md` §8） |
+| 16 | **[风险类，未记录为已发生]** 环数上界若做**钳制**而不是抛错（`buildTable(n)` / `formula(n)` 的边界） | 钳制会把越界调用静默变成"算了个小 n"，屏幕上照样印一个数、只是答非所问。本仓 `buildTable` 越界**直接 throw**（n ≤ 16），`formula` 钳在 1 ≤ n ≤ 51（`Number` 到 n=51 才失真） | `js/core/solve.js:31,40`；`@boot` "and the page refuses an out-of-range ring count"（`tools/playtest.mjs:423`）；上界之外刻意不做（§6-10 与 `DESIGN.md` §8） |
 | 17 | `README.md:23` 曾写 `node server.cjs # http://127.0.0.1:5180/` | 实现默认端口是 **5181**（`server.cjs:48,59`），`verify.sh` 的 `WEB_PORT` 与 `playtest.mjs` 的 `BASE` 也都是 5181；照 README 抄会连不上 | **已改为 5181**（主代理核查后修）。复现：`grep -rn "5180\|5181" README.md server.cjs tools/` 现只回 5181 |
 | 18 | `js/main.js:37` 注释曾引用 "DESIGN.md 1.3" | `DESIGN.md` 只有 1、1.1、1.2…，相关内容在 §1.1；指向不存在的节会让维护者按错的坐标找约束 | **已改为 §1.1**。复现：`grep -rn "DESIGN.md" js/main.js` |
 
@@ -133,7 +133,7 @@
 | 零依赖 | `node -e` 读 `package.json` | `dependencies {}`、`devDependencies {}` |
 | 无 `node_modules` | `ls node_modules` | `No such file or directory` |
 | 无二进制资产 | 摘要表里的 `find` | 只剩 `LICENSE`、`.gitignore` |
-| 无未接线的模块级导出 | `grep -rn "mulberry32\|shuffle\|\.chance(\|\.range(" js test tools` → 命中全在 `js/core/rng.js:16,29,41,42`；调用方 `grep -rn "\.pick(\|\.int(" js test tools \| grep -v core/rng.js` → 只有 `js/core/make.js:61,69,96` | 模块级导出都有外部调用方；`mulberry32` 只被 `rngFrom`（同文件 `:41-42`）用，`rng.range`/`rng.chance`/`rng.shuffle`（`:26,28,29` 定义）无任何调用方。契约 §1 要求 `rng.js` 原样搬运，与 §5 的"无人调用则删"在这一格冲突，本仓按 §1 保留——见 §6-7。另有 `window.rings.undoOnce` 一条未接线钩子，同见 §6-7 |
+| 无未接线的模块级导出 | `grep -rn "mulberry32\|shuffle\|\.chance(\|\.range(" js test tools` → 命中全在 `js/core/rng.js:16,29,41,42`；调用方 `grep -rn "\.pick(\|\.int(" js test tools \| grep -v core/rng.js` → 只有 `js/core/make.js:61,69,96` | 模块级导出都有外部调用方；`mulberry32` 只被同文件的 `rngFrom`（`js/core/rng.js:39-42`）用到，`rng.range`（`js/core/rng.js:26`）/`rng.chance`（`js/core/rng.js:28`）/`rng.shuffle`（`js/core/rng.js:29`）三处定义无任何调用方。契约 §1 要求 `rng.js` 原样搬运，与 §5 的"无人调用则删"在这一格冲突，本仓按 §1 保留——见 §6-7。另有 `window.rings.undoOnce` 一条未接线钩子，同见 §6-7 |
 | 关卡数据确实是产物 | `grep -c '^  {' js/data/levels.js` | `64` |
 
 ---
@@ -321,13 +321,13 @@ $ lsof -nP -iTCP:5181 -iTCP:9341 -sTCP:LISTEN
 
 1. **Electron 壳从未真实启动**。只有 `node --check electron/main.cjs`（在 §5.1 的 `npm run check` 里）过语法；仓内不装 electron、本机也没装，`README.md:130` 已声明。契约 §1 只要求复用 `server.cjs` + `port:0`（`electron/main.cjs:7-8` 确实如此），**运行性未验证**。
 2. **移动端未真机验证**。`css/game.css` 的 ≤820px 断点与 `touch-action: none` 写了，`@pointer` 走的是鼠标事件（`Input.dispatchMouseEvent`），没有派发过 `Input.dispatchTouchEvent`。`README.md:131` 已声明。
-3. **`README.md:23` 端口曾写错**（已修）：印的是 `# http://127.0.0.1:5180/`，实现默认 **5181**（`server.cjs:48,59`、`package.json:9` 的 `dev` 脚本、`verify.sh:16`、`playtest.mjs:18` 全是 5181）。见改动表 #17。
+3. **`README.md:23` 端口曾写错**（已修）：印的是 `# http://127.0.0.1:5180/`，实现默认 **5181**（`server.cjs:48,59`、`package.json:9` 的 `dev` 脚本、`tools/verify.sh:16` 的 `WEB_PORT` 默认值、`tools/playtest.mjs:18` 的 `BASE` 默认值全是 5181）。见改动表 #17。
 4. **`js/main.js:37` 注释曾指向不存在的节**（已修）："see DESIGN.md 1.3"；`DESIGN.md` 相关内容在 §1.1。见改动表 #18。
-5. **计时数字不逐位可复现，文档未标注这一点**。本次实跑：`bake` 的 `0.0037 ms/level`、`balance` 的 `25 次完整 BFS 中位 0.056 · 最快 0.049 · 最慢 0.161`、`novice` 最慢 0.2072 ms。而 `README.md:63,80` 印的是 `中位 0.048 · 最快 0.046 · 最慢 0.170` 与 `中位 0.0013–0.0017 ms、最慢 0.5646 ms`，`js/core/library.js:11` 的注释印的是 `0.0025 ms each`。**结构量（512 / 341 / 511 / 四档区间 / 800-of-800）逐位可复现，计时量随机器与负载漂移**——文档把它们和结构量并列呈现，没写这一句区分。
+5. **计时数字不逐位可复现**。README 印的是 `中位 0.055 · 最快 0.044 · 最慢 0.173`（`README.md:63`）与 `中位 0.0007–0.0010 ms、四带里最慢一枪 0.3104 ms`（`README.md:80`），`js/core/library.js:11-12` 的注释印的是 `0.0025 ms each`；本轮 `node test/balance.mjs` 与 `npm run bake` 各复跑一次，前者给出 `中位 0.031 · 最快 0.029 · 最慢 0.111`、后者仍是 `0.0025 ms/level`——同一台机器、同一份代码，只有负载不同。**结构量（512 / 341 / 511 / 四档区间 / 800-of-800）逐位可复现，计时量随机器与负载漂移**，文档把它们和结构量并列呈现而未标注这一点；读数住在日志工件里，不在本文抄。
 6. **`README.md:49-54` 那张表混用了两个统计口径而未标注**：`关卡数 / par 中位` 来自**已发布 16 关**（`library.stats()`），`区间内位置数 / 剑上环数 min/med/max` 来自**整带 128/127 个位置**（`balance.mjs` 的"每一带的形状"段）。已发布池自己的剑上环数是 novice 1-6 / linked 2-7 / twined 3-9 / master 1-8（§4.2 的"各带剑上环数"行）。两栏都能用 `node test/balance.mjs` 复现，但同一行不同源。
 7. **两处"导出但没人调用"（契约 §5 要求删掉，本仓没删干净）**：
-   - `js/core/rng.js` 的 `rng.range`（`:26`）/ `rng.chance`（`:28`）/ `rng.shuffle`（`:29`）无任何调用方；被用到的是 `rng.int`（`js/core/make.js:61`）与 `rng.pick`（`:69,96`）。另外 `mulberry32` 只被同文件的 `rngFrom` 用（`:41-42`），不必导出。这是契约 §1（"rng.js 原样搬过去"）与 §5（"无人调用则删"）在这一格上的冲突，本仓按 §1 保留。
-   - `window.rings.undoOnce`（`js/main.js:451`）在仓内**只有定义、没有调用方**：`grep -rn "undoOnce" js tools test` 只回 `js/main.js:451`。这是本次核查新查出的一条，比摘要里"unwired exports none"更严的口径。
+   - `js/core/rng.js` 的 `rng.range`（`js/core/rng.js:26`）/ `rng.chance`（`js/core/rng.js:28`）/ `rng.shuffle`（`js/core/rng.js:29`）无任何调用方；被用到的是 `rng.int`（`js/core/make.js:61`）与 `rng.pick`（`js/core/make.js:69`、`js/core/make.js:96`）。另外 `mulberry32` 只被同文件的 `rngFrom`（`js/core/rng.js:39-42`）用到，不必导出。这是契约 §1（"rng.js 原样搬过去"）与 §5（"无人调用则删"）在这一格上的冲突，本仓按 §1 保留。
+   - 挂在 `window.rings` 上的 `undoOnce`（`js/main.js:451`）在仓内**只有定义、没有调用方**：`grep -rn "undoOnce" js tools test` 只回 `js/main.js:451`。这是本次核查新查出的一条，比摘要里"unwired exports none"更严的口径。
    除这一格外，`window.rings` 的其余成员都被台架读到或调用（复现：`grep -oE "\bg\.[a-zA-Z]+\(" tools/playtest.mjs | sort -u` 列出 18 个方法调用，另有 `state/pool/bands/version/store` 以属性形式读）。**没有幽灵界面**：撤销能力本身有真断言（`@pointer` 的 "the u key undoes" 与 "undo takes the step back and the picture back with it"），没接线的只是 `undoOnce` 这个钩子别名。
 8. **GitHub Actions 未在本机执行过**（无远端、无推送；本任务禁止 git 写操作）。`ci.yml` 的两个 step 与 `pages.yml` 的拷贝在本地各自等价于 §5.1 / §5.2 / §5.3 已跑绿的命令，但"CI 绿"这一声称要等主代理推上去才成立。
 9. **n = 13、14 的闭式对账不在 CI 里**（§4.3 那条命令是手工一次性命令）。n = 15 及更大未跑（`buildTable` 上界 n ≤ 16，且 2^16 结点已不适合放在每次 CI 的 node 层）。
@@ -344,7 +344,7 @@ $ lsof -nP -iTCP:5181 -iTCP:9341 -sTCP:LISTEN
 | §2 直径 | "n=9 时 `max(dist)` 必须是 341" | **规格为假**：`max(dist) = 511`，341 是 `dist[全1]`。两条都断言（改动表 #4） |
 | §3 难度带 | 取 512 态直方图分位数，"预期 1–7 / 8–31 / 32–127 / 128–341" | 前一半达成（确实取分位数），后一半**规格为假**：实测 1-128 / 129-256 / 257-383 / 384-511（改动表 #5） |
 | §3 每日题 | `hashSeed(YYYY-MM-DD)` 选带选掩码，跨设备一致 | 达成（`js/core/library.js:102-106`；`@routes` "the daily route is the same puzzle twice"） |
-| §4 UI | 剑 + 9 环、环在两行之间真的位移、`ringPoint(k)` 给 CDP、可动环高亮 / 不可动灰+抖、面板含步数/par/超出/四档/分享/每日/重置/提示 | 达成；面板字段见 `js/main.js:119-124`（步数/最少/距最优/超出/最佳/剑上），`ringPoint` 见 `js/view.js:340`；证据是 §5.3 的 `@pointer`(24) |
+| §4 UI | 剑 + 9 环、环在两行之间真的位移、`ringPoint(k)` 给 CDP、可动环高亮 / 不可动灰+抖、面板含步数/par/超出/四档/分享/每日/重置/提示 | 达成；面板字段见 `js/main.js:119-124`（步数/最少/距最优/超出/最佳/剑上），`ringPoint` 见 `js/view.js:360`；证据是 §5.3 的 `@pointer`(24) |
 | §5 node ≥ 38 | — | 62（§5.2） |
 | §5 browser ≥ 38，含真实输入事件段 | — | 94，其中 `@pointer` 24（§5.3） |
 | §7 9 环是设计边界 | 文档写死 | 写在 `DESIGN.md` §8、`README.md` 已知边界 |

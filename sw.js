@@ -1,69 +1,56 @@
-// Offline shell for the browser build. Versioned cache name, and *network first* for every
-// same-origin subresource: this game ships un-bundled ES modules by hand-edited filename, so
-// a cache-first rule would pin js/core/solve.js to whatever the player got on day one and
-// serve a new index.html on top of old rules — the ghost state where the numbers on screen
-// stop matching the code that produced them.
+'use strict';
+// 离线可用 + 永不被旧缓存钉住。
 //
-// Registered only over http(s) from js/main.js; `file://` has no SW and no origin to scope
-// to, so there nothing here ever runs.
-
-const CACHE = 'rings-v1';
-const CORE = ['./', './index.html', './css/game.css', './manifest.webmanifest'];
+// 两条实测换来的口径：
+//   1) 一律 **网络优先**，命中网络才回填缓存。手工 VERSION + cache-first 的组合，
+//      发出去的 HTML 会配上上一版的 js/css，出一个"新界面配旧逻辑"的鬼状态，
+//      而且玩家自己无法恢复（只能等缓存过期）。
+//   2) 缓存名带版本号（activate 时清掉非本版的名字）。改版**不需要**同步 bump：
+//      同名文件重绘之后，网络优先这一条保证客户端下一次联网就拿到新字节。
+const VERSION = 'nine-rings-cos-v1';
+const CACHE = `${VERSION}-shell`;
+const PRECACHE = ['index.html', 'manifest.webmanifest'];
 
 self.addEventListener('install', (ev) => {
+  // 首屏两件套先抓下来：断网时至少能打开界面，而不是浏览器的错误页。
   ev.waitUntil(
-    caches.open(CACHE)
-      // addAll rejects as a unit, and one unavailable core file must not cost the whole
-      // install — each entry settles on its own and the promise still resolves.
-      .then((cache) => Promise.all(CORE.map((url) => cache.add(url).catch(() => {}))))
-      .then(() => self.skipWaiting()),
+    caches.open(CACHE).then((c) => c.addAll(PRECACHE).catch(() => {})).then(() => self.skipWaiting())
   );
 });
 
 self.addEventListener('activate', (ev) => {
   ev.waitUntil(
-    caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
-      .then(() => self.clients.claim()),
+    caches
+      .keys()
+      .then((keys) => Promise.all(keys.filter((k) => !k.startsWith(VERSION)).map((k) => caches.delete(k))))
+      .then(() => self.clients.claim())
   );
 });
-
-const CACHEABLE = /(text\/html|text\/css|text\/javascript|application\/javascript|application\/json|image\/png|image\/svg|image\/x-icon)/;
 
 self.addEventListener('fetch', (ev) => {
   const req = ev.request;
   if (req.method !== 'GET') return;
-  let url;
-  try {
-    url = new URL(req.url);
-  } catch (err) {
-    return;
-  }
+  const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
-  ev.respondWith(networkFirst(req, url));
-});
 
-async function networkFirst(req, url) {
-  let res = null;
-  let netError = null;
-  try {
-    res = await fetch(req);
-  } catch (err) {
-    netError = err;
-  }
-  if (res && res.ok && CACHEABLE.test(res.headers.get('content-type') || '')) {
-    const clone = res.clone();
-    const cache = await caches.open(CACHE).catch(() => null);
-    if (cache) await cache.put(req, clone).catch(() => {});
-  }
-  if (res) return res;
-  const hit = await caches.match(req);
-  if (hit) return hit;
-  // A navigated-to level link (#/c/12) is still this page: answer it with the cached shell
-  // so the hash route resolves and the solver rebuilds the position from js/core.
-  if (netError && req.mode === 'navigate') {
-    const page = await caches.match('./index.html');
-    if (page) return page;
-  }
-  throw netError || new TypeError('offline and not cached: ' + url.pathname);
-}
+  ev.respondWith(
+    fetch(req)
+      .then((res) => {
+        if (res && res.ok) {
+          const copy = res.clone();
+          caches.open(CACHE).then((c) => c.put(req, copy));
+        }
+        return res;
+      })
+      .catch(async () => {
+        const hit = await caches.match(req);
+        if (hit) return hit;
+        // 导航请求（地址栏/刷新/桌面图标）离线时回落到缓存的那份壳，不白屏。
+        if (req.mode === 'navigate') {
+          const shell = await caches.match('index.html');
+          if (shell) return shell;
+        }
+        return Response.error();
+      })
+  );
+});

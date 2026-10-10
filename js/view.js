@@ -71,6 +71,16 @@ export function createView(canvas, { onClick, onIllegal, onSimTick } = {}) {
   let live = []; // rings the rule allows right now, refreshed once per draw
   let hint = null; // { ring, left }
   let raf = 0;
+
+  // ---- 减弱动效（prefers-reduced-motion）----
+  // 两处装饰：① 提示环 t = (now % 1100) / 1100 喂给线宽、半径与透明度；② 被非法点击的那一环
+  // 抖 jitter = Math.sin(shake[k] * 26) * shake[k] * r * 0.6。
+  // 减弱动效下两者都停。判据：非法点击本来就有 onIllegal 那句人话读数
+  // （"第 k 环现在拨不动 —— 先把它下面那一环拨上…"），抖动是叠在读数上的装饰；
+  // 所以归零位移不损失信息。**提示环本体一律留着** —— 环才是"往这儿拨"这条信息本身。
+  // 与 ferry-cos / hashi 同口径。
+  let reduceMotion = false;
+  const ringPhase = () => (reduceMotion ? 0.5 : (performance.now() % 1100) / 1100);
   let last = 0;
   let warm = 0; // first frames always repaint, so the canvas is never blank
   let accum = 0;
@@ -146,7 +156,7 @@ export function createView(canvas, { onClick, onIllegal, onSimTick } = {}) {
 
   // Visual centre of ring k right now, canvas-local.
   function ringCentre(k) {
-    const jitter = shake[k] > 0 ? Math.sin(shake[k] * 26) * shake[k] * geom.r * 0.6 : 0;
+    const jitter = shake[k] > 0 && !reduceMotion ? Math.sin(shake[k] * 26) * shake[k] * geom.r * 0.6 : 0;
     return { x: slotX(k) + jitter, y: geom.barY + drop[k] * geom.swing };
   }
 
@@ -263,9 +273,7 @@ export function createView(canvas, { onClick, onIllegal, onSimTick } = {}) {
       ctx.stroke();
     }
     if (hint && hint.ring === k) {
-      // Pulse off the sim clock, not the wall clock: paused freezes it, reduced-motion
-      // replaces it with a still ring, and neither can leave a "live" hint on a dead frame.
-      const t = reducedMotion ? 0.34 : (simClock % HINT_PERIOD) / HINT_PERIOD;
+      const t = ringPhase();
       ctx.lineWidth = 2 + t * 4;
       ctx.strokeStyle = `rgba(120, 220, 255, ${(0.9 - t * 0.6).toFixed(3)})`;
       ctx.beginPath();
@@ -516,6 +524,16 @@ export function createView(canvas, { onClick, onIllegal, onSimTick } = {}) {
   });
 
   return {
+    // The gate the runtime pref flip lands on: idempotent, repaints so a ring stops mid-jitter
+    // on the frame the setting changes rather than at the end of the decay.
+    setReduceMotion(v) {
+      const on = !!v;
+      if (on === reduceMotion) return reduceMotion;
+      reduceMotion = on;
+      if (reduceMotion) draw();
+      return reduceMotion;
+    },
+    isReducedMotion: () => reduceMotion,
     attach(next) {
       game = next;
       hint = null;
