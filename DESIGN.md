@@ -146,7 +146,7 @@ the file, and they do not overlap" 再比对一次。改了规则却忘了让这
 ## 4. 出题：能生成是因为不用搜
 
 一条关卡 = 一个九位掩码。`js/core/make.js:56` 的 `makeLevel(seed, tierKey)` 做两件事：
-在带里抽一个距离，再取"拥有这个距离的那个位置"（`statesAtPar`，`js/core/make.js:47`）。
+在带里抽一个距离，再取"拥有这个距离的那个位置"（`js/core/make.js:47` 的 `statesAtPar`）。
 因为第 3 节那条路径性质，池子里每个距离**恰好有一个位置**，于是：
 
 - 接受率恒为 100%，重试环不存在（实测每带 500 个种子 `500/500`，`node test/balance.mjs` 第三段）；
