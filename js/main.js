@@ -2,6 +2,7 @@
 // of the sword — those live in js/core — and nothing here draws — that is js/view.js.
 
 import { createGame, click, undo, reset, hint, grade, remaining, overPar, nextRing, tableRoute, bitsOf, isOn, RINGS, SOLVED } from './core/game.js';
+import { createSession } from './core/session.js';
 import { table, buildTable, summary } from './core/solve.js';
 import { store } from './core/storage.js';
 import {
@@ -17,6 +18,7 @@ const el = {
   verdict: $('verdict'), tally: $('tally'), undo: $('undo'), hint: $('hint'), demo: $('demo'),
   restart: $('restart'), share: $('share'), next: $('next'), again: $('again'),
   toast: $('toast'), canvas: $('sword'), wipe: $('wipe'),
+  pause: $('pause'), resume: $('resume'), veil: $('pause-veil'),
 };
 
 const LEVELS = ALL.length;
@@ -31,6 +33,12 @@ const app = {
   label: '',
   day: null,
 };
+
+// The stopwatch and the pause, in one place. The clock is the only thing that
+// knows how long the player has been at this board; the pause is the only
+// thing that knows whether the board is live. Both live in js/core/session.js
+// so `node --test` can drive them without a browser.
+const session = createSession();
 
 // The exhaustive sweep, timed once. This is the repo's whole claim in three numbers: 512
 // nodes, all of them reached, and it cost well under a frame — which is why the browser is
@@ -89,6 +97,7 @@ function resolve(rt) {
 const view = createView(el.canvas, {
   onClick: (k) => commit(k),
   onIllegal: (k) => say(`第 <b>${k + 1}</b> 环现在拨不动 —— 先把它下面那一环拨上、其余环拨下`),
+  session,
 });
 
 function setGame(level, label) {
@@ -97,6 +106,8 @@ function setGame(level, label) {
   app.label = label || app.label;
   app.game = createGame(level);
   app.hints = 0;
+  session.reset(); // a new board is a new attempt: the clock starts at zero, the pause is lifted
+  applyPauseUi(); // and the veil goes with it
   view.attach(app.game);
   el.curtain.hidden = true;
   say('');
@@ -122,14 +133,25 @@ function renderCrumbs() {
     field('超出', overPar(app.game), '步 vs 最少'),
     field('最佳', rec && rec.best ? rec.best : '—', rec && rec.perfect ? '等于最少' : '你的纪录', 'best'),
     field('剑上', bitsOf(app.game.state, app.game.n).reduce((a, b) => a + b, 0), `共 ${app.game.n} 环`),
+    field('用时', clockText(), '本局用时', 'clock', 'elapsed'),
   ].join('');
-  el.undo.disabled = !app.game.moves || app.game.done;
-  el.hint.disabled = app.game.done;
-  el.demo.disabled = app.game.done;
+  // 暂停时这几个按钮一并收起来：撤销改局面、提示改局面、演示自己往前跑——
+  // 都是"盘面在动"的动作，暂停期间一个都不该发生。
+  el.undo.disabled = !app.game.moves || app.game.done || session.paused;
+  el.hint.disabled = app.game.done || session.paused;
+  el.demo.disabled = app.game.done || session.paused;
+  el.pause.disabled = app.game.done; // 通关之后没有可暂停的东西了
 }
 
-function field(label, value, note, cls = '') {
-  return `<div class="${cls}"><dt>${label}</dt><dd>${value}</dd><dt><small>${note}</small></dt></div>`;
+// The clock reads M:SS. It is the same number the win card prints, and the
+// same number the pause freezes.
+function clockText() {
+  const s = Math.floor(session.elapsedMs() / 1000);
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+}
+
+function field(label, value, note, cls = '', id = '') {
+  return `<div class="${cls}"><dt>${label}</dt><dd${id ? ` id="${id}"` : ''}>${value}</dd><dt><small>${note}</small></dt></div>`;
 }
 
 function renderTotals() {
@@ -209,6 +231,12 @@ function render() {
 // The one place a click happens: a finger on the canvas, a replay from a test link, and the
 // solver's own route on the demo all arrive here, and all get held to the same rule.
 function commit(k) {
+  // 暂停时这一口是硬的：手指、拖拽、测试钩子、演示走的一步，全都从这里过。
+  // 所以暂停期间不可能偷偷落子——遮罩挡住的是画布，这一行挡住的是其余所有入口。
+  if (!session.acceptsInput()) {
+    view.redraw();
+    return false;
+  }
   const moved = click(app.game, k);
   if (!moved) {
     view.redraw();
@@ -235,10 +263,11 @@ function finish() {
     nextIndex = app.index < LEVELS ? app.index + 1 : 0;
   }
   stopDemo('');
+  session.finish(); // 停表：通关卡上印的用时是最终读数，不再往上跑
   const gr = grade(g);
   el.stars.textContent = starText(gr.stars);
   el.verdict.textContent = gr.label;
-  el.tally.innerHTML = `你的 <b>${g.moves}</b> 步 · 穷尽最少 <b>${level.par}</b> 步 · 提示 <b>${app.hints}</b>`
+  el.tally.innerHTML = `你的 <b>${g.moves}</b> 步 · 穷尽最少 <b>${level.par}</b> 步 · 提示 <b>${app.hints}</b> · 用时 <b>${clockText()}</b>`
     + (rec.best === g.moves ? '<br>这是这一关的最好成绩' : '');
   el.next.hidden = !nextIndex;
   el.curtain.hidden = false;
@@ -299,6 +328,9 @@ function startDemo() {
   el.demo.textContent = '停止';
   el.demo.setAttribute('aria-pressed', 'true');
   demoTimer = setInterval(() => {
+    // 暂停期间演示不自己往前跑：这就是本仓唯一那个"会自己往前跑"的东西，
+    // 玩家按下暂停，它就得停。
+    if (!session.acceptsInput()) return;
     const k = nextRing(app.game);
     if (k < 0 || app.game.done || ++demoSteps > bfs.size) {
       stopDemo('演示到此为止');
@@ -316,6 +348,47 @@ function stopDemo(note) {
   el.demo.setAttribute('aria-pressed', 'false');
   if (note) say(note);
 }
+
+// ---- 暂停（HUD 按钮 / P / Esc）----
+//
+// 暂停要真的停，三件事一起停：秒表不走（js/core/session.js 把这一段存起来，
+// 恢复时从原处接着加）、环不再位移（js/view.js 的 rAF 在暂停时跳过 update）、
+// 盘面不吃输入（遮罩压住画布 + commit() 再挡一道）。恢复不丢状态：已拨的环、
+// 已走的步数、已用的时间都留在原处。
+// The pause's visible state: the button's wording, the veil, and the readout.
+// Kept apart from the message so that a level change (which resets the
+// session) can put the screen back in order without writing a line of text.
+function applyPauseUi() {
+  const on = session.paused;
+  el.pause.textContent = on ? '继续' : '暂停';
+  el.pause.setAttribute('aria-pressed', String(on));
+  el.veil.hidden = !on;
+}
+
+function syncPause(note) {
+  applyPauseUi();
+  if (note) say(note);
+  renderCrumbs();
+}
+
+function togglePause() {
+  const before = session.paused;
+  session.toggle();
+  if (session.paused === before) return session.paused; // 已经通关，没什么可暂停的
+  syncPause(session.paused ? '已暂停 —— 计时停住，盘面不吃输入（按 <b>P</b> 或 <b>Esc</b> 继续）' : '继续');
+  return session.paused;
+}
+
+// 秒表自己走，所以「用时」是一个活的读数，而不是碰巧点了一下才变的数字。
+// 它只写自己那一个格子：每 200ms 重建整块读数板是白费力气。
+const clockTimer = setInterval(() => {
+  if (session.state === 'finished') return;
+  const cell = document.getElementById('elapsed');
+  if (cell) cell.textContent = clockText();
+}, 200);
+
+el.pause.addEventListener('click', () => togglePause());
+el.resume.addEventListener('click', () => togglePause());
 
 el.modes.addEventListener('click', (ev) => {
   const b = ev.target.closest('button[data-mode]');
@@ -356,6 +429,8 @@ function restart() {
   stopDemo('');
   reset(app.game);
   app.hints = 0;
+  session.reset(); // 重开也是一次新的尝试：秒表归零，暂停解除
+  applyPauseUi();
   el.curtain.hidden = true;
   view.redraw(); // the rings travel back on the animation loop rather than teleporting
   render();
@@ -388,8 +463,13 @@ window.addEventListener('resize', () => view.measure());
 window.addEventListener('keydown', (ev) => {
   if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
   const k = ev.key.toLowerCase();
-  if (k === 'escape' && !el.curtain.hidden) el.curtain.hidden = true;
-  else if (k === 'u') el.undo.click();
+  // Esc 先关通关卡（老行为）；卡不在的时候，Esc 就是暂停键。
+  if (k === 'escape' && !el.curtain.hidden) { el.curtain.hidden = true; return; }
+  // P 与 Esc：暂停 / 继续。
+  if (k === 'p' || k === 'escape') { togglePause(); return; }
+  // 暂停期间别的键一律不接：撤销、提示、重开、演示，每一个都会动盘面。
+  if (session.paused) return;
+  if (k === 'u') el.undo.click();
   else if (k === 'h') el.hint.click();
   else if (k === 'r') el.restart.click();
   else if (k === 'd') el.demo.click();
@@ -420,6 +500,8 @@ window.rings = {
       solved: ALL.filter((l) => store.record(l.id) && store.record(l.id).solved).length,
       curtain: !el.curtain.hidden,
       demo: !!demoTimer,
+      paused: session.paused,
+      elapsedMs: session.elapsedMs(),
       n: app.game && app.game.n,
     };
   },
@@ -454,6 +536,11 @@ window.rings = {
   pixels() { return view.pixelsHash(); },
   painted() { return view.painted(); },
   reset() { restart(); return app.game.moves; },
+  // The pause, for an automated finger: it flips the same switch the HUD
+  // button and the P key flip, so there is one pause and not three.
+  get paused() { return session.paused; },
+  elapsedMs() { return session.elapsedMs(); },
+  pauseToggle() { return togglePause(); },
   store,
 };
 

@@ -28,7 +28,7 @@ function roundRect(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
-export function createView(canvas, { onClick, onIllegal } = {}) {
+export function createView(canvas, { onClick, onIllegal, session } = {}) {
   // `willReadFrequently` because tools/playtest.mjs reads the bitmap back to prove that a
   // legal click changes the picture and an illegal one does not; without it Chrome logs a
   // warning on every readback, which would drown the console-clean check.
@@ -52,6 +52,13 @@ export function createView(canvas, { onClick, onIllegal } = {}) {
   const ringPhase = () => (reduceMotion ? 0.5 : (performance.now() % 1100) / 1100);
   let last = 0;
   let warm = 0; // first frames always repaint, so the canvas is never blank
+
+  // The pause has to reach the pixels and the fingers, so it is asked here and
+  // here only. `session` is the object js/core/session.js hands the shell (see
+  // js/main.js) — one pause state, read by the renderer, not a second copy of
+  // it. No session means no pause, which is what the old call sites get.
+  const isPaused = () => !!(session && session.paused);
+  const accepts = () => !session || session.acceptsInput();
 
   function measure() {
     const box = canvas.getBoundingClientRect();
@@ -114,6 +121,10 @@ export function createView(canvas, { onClick, onIllegal } = {}) {
 
   function down(ev) {
     if (!game || game.done) return;
+    // Paused: the board takes no clicks at all. Not "an illegal click" — an
+    // illegal click shakes the ring and prints a line; a paused board is not
+    // playing at all, so the finger is simply not accepted.
+    if (!accepts()) return;
     const p = localPoint(ev);
     let hitRing = -1;
     let best = Infinity;
@@ -306,6 +317,11 @@ export function createView(canvas, { onClick, onIllegal } = {}) {
 
   function frame(now) {
     raf = requestAnimationFrame(frame);
+    // Paused: the picture is a photograph. The rings do not travel, the
+    // illegal-click shake does not decay, and nothing is repainted. `last = 0`
+    // so the first frame after the resume starts from dt = 0 instead of
+    // swallowing the whole paused stretch in one leap.
+    if (isPaused()) { last = 0; return; }
     const dt = Math.min(0.064, (now - (last || now)) / 1000);
     last = now;
     const busy = step(dt);

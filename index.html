@@ -40,12 +40,22 @@
         </div>
       </div>
     </div>
+    <!-- 暂停态：压在盘面上。遮罩同时干两件事——把「已暂停」写出来，
+         并且把画布上的点击吃掉（盘面不吃输入）。 -->
+    <div class="pause-veil" id="pause-veil" hidden>
+      <div class="pause-card">
+        <p class="pause-title">已暂停</p>
+        <p class="pause-note">计时停住，盘面不吃输入。<br>按 <b>P</b> 或 <b>Esc</b> 继续。</p>
+        <button type="button" id="resume">继续</button>
+      </div>
+    </div>
   </section>
 
   <aside class="panel">
     <p class="crumbs" id="crumbs"></p>
     <dl class="readout" id="readout"></dl>
     <div class="controls">
+      <button type="button" id="pause" aria-pressed="false" title="暂停 / 继续（P 或 Esc）">暂停</button>
       <button type="button" id="undo">撤销</button>
       <button type="button" id="hint">提示</button>
       <button type="button" id="demo">演示</button>

@@ -95,6 +95,18 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 .curtain-actions button { flex: 1; padding: 10px; font-size: 13px; border: 1px solid var(--line); border-radius: 9px; }
 .curtain-actions .primary { border-color: rgba(216, 161, 60, 0.6); color: var(--brass); background: rgba(216, 161, 60, 0.1); }
 
+/* ---- 暂停态 ----
+   遮罩压在盘面上：它把「已暂停」写出来，同时把画布上的点击吃掉（盘面不吃输入）。
+   按钮的 44px 命中盒由本文件末尾那条全局底线兜着，这里不再另写一份。 */
+.pause-veil { position: absolute; inset: 0; z-index: 5; display: grid; place-items: center; background: rgba(12, 14, 18, 0.66); backdrop-filter: blur(2px); border-radius: 12px; }
+.pause-veil[hidden] { display: none; }
+.pause-card { width: min(300px, 86%); border: 1px solid rgba(120, 220, 255, 0.35); border-radius: 14px; background: var(--bg-2); padding: 20px; text-align: center; }
+.pause-title { font-size: 19px; color: var(--cyan); letter-spacing: 0.12em; }
+.pause-note { font-size: 12px; color: var(--ink-dim); line-height: 1.8; margin-top: 8px; }
+.pause-note b { color: var(--cyan); font-weight: 600; }
+.pause-card button { margin-top: 14px; padding: 10px 20px; font-size: 13px; border: 1px solid rgba(120, 220, 255, 0.5); border-radius: 9px; color: var(--cyan); }
+.readout .clock dd { color: var(--ink); }
+
 .toast { position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%); padding: 9px 16px; border: 1px solid var(--line); border-radius: 999px; background: var(--bg-2); font-size: 12px; color: var(--brass); }
 .toast[hidden] { display: none; }
 

@@ -188,7 +188,7 @@ the file, and they do not overlap" 再比对一次。改了规则却忘了让这
 
 ## 6. 画面：把规则画对就是玩法教学
 
-`js/view.js` 只有两行是"语义"的：`settle()`（`js/view.js:110`）把每个环的目标行设为 `isOn(state, k) ? 0 : 1`，
+`js/view.js` 只有两行是"语义"的：`settle()`（`js/view.js:117`）把每个环的目标行设为 `isOn(state, k) ? 0 : 1`，
 以及 `drop[k]` 向目标插值。理由写在文件头注释里：**在上的环必须穿在杆上、拨下来的环必须挂在杆下，
 而且环要真的在两行之间移动** —— 玩家看的是这个位移才知道规则是什么。
 
@@ -197,7 +197,7 @@ the file, and they do not overlap" 再比对一次。改了规则却忘了让这
 没有这个标志 Chrome 每次回读都会在 console 打一条 warning，而 `verify.sh` 有
 "console 必须干净"的断言 ——  warning 会淹没真错误。
 
-`ringPoint(k)`（`js/view.js:360`）返回**动画后的实际位置**（含 `on`/`ring`），
+`ringPoint(k)`（`js/view.js:376`）返回**动画后的实际位置**（含 `on`/`ring`），
 这是 `@pointer` 能派发真实点击的前提；它也顺带证明了文案与画面读的是同一个 `isOn`。
 
 ---
@@ -255,6 +255,11 @@ the file, and they do not overlap" 再比对一次。改了规则却忘了让这
 
 headless Chrome 把自己报成 hidden。通关动画与胜利卡片由同一个 rAF 循环驱动，
 一暂停测试就永远看不到通关，所以 `js/main.js` 显式不接这个事件。
+
+这跟玩家自己按下的暂停是两件事：**那个是玩家说"我先离开一会儿"，这个是浏览器说
+"我看不见你了"**。玩家按下的那一个是真的暂停：秒表停住、环不再位移、盘面不吃输入
+（`js/core/session.js` 一个状态机管着，`P`、`Esc`、面板按钮三条路都汇到它），
+而浏览器报 hidden 这一路一概不接——否则一局棋会在玩家没碰它的时候自己走完。
 
 ---
 
