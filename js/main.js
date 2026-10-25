@@ -10,6 +10,10 @@ import {
 } from './core/library.js';
 import { todayKey } from './core/rng.js';
 import { createView } from './view.js';
+// 听觉与触觉这两路反馈：视觉与数值之外，桌面上还该有"听得见"的一路。
+// 音频模块自己管手势解锁与真静音（suspend），这里只管把音接到真实事件上。
+import { audio } from './audio.js';
+import { haptics } from './haptics.js';
 
 const $ = (id) => document.getElementById(id);
 const el = {
@@ -230,31 +234,45 @@ function render() {
 
 // The one place a click happens: a finger on the canvas, a replay from a test link, and the
 // solver's own route on the demo all arrive here, and all get held to the same rule.
+//
+// 声音接在这条路径上，因为这条路径上发生的是**真实事件**：
+//   · 暂停中 → blocked（闸挡住了，不是"错"）
+//   · 规则拒了这一拨 → wrong（canToggle 说不行：这一环此刻动不了）
+//   · 规则认了这一拨 → correct（一次有效操作成功）
+//   · 剑空了（全部下剑）→ win（在 finish 里）
 function commit(k) {
   // 暂停时这一口是硬的：手指、拖拽、测试钩子、演示走的一步，全都从这里过。
   // 所以暂停期间不可能偷偷落子——遮罩挡住的是画布，这一行挡住的是其余所有入口。
   if (!session.acceptsInput()) {
+    audio.play('blocked');
     view.redraw();
     return false;
   }
   const moved = click(app.game, k);
   if (!moved) {
+    audio.play('wrong');
+    haptics.wrong();
     view.redraw();
     return false;
   }
-  if (app.game.done) finish();
-  else {
-    view.redraw();
-    renderCrumbs();
-    const nowOn = isOn(app.game.state, k);
-    say(`第 <b>${k + 1} 环</b> ${nowOn ? '上了剑' : '离了剑'} · 已用 ${app.game.moves} 步 · 距最优 <b>${remaining(app.game)}</b> 步`);
+  if (app.game.done) {
+    finish();                      // 收官那一响是 win，在 finish 里
+    haptics.correct();
+    return true;
   }
+  audio.play('correct');           // 一次有效操作成功
+  haptics.correct();
+  view.redraw();
+  renderCrumbs();
+  const nowOn = isOn(app.game.state, k);
+  say(`第 <b>${k + 1} 环</b> ${nowOn ? '上了剑' : '离了剑'} · 已用 ${app.game.moves} 步 · 距最优 <b>${remaining(app.game)}</b> 步`);
   return true;
 }
 
 function finish() {
   const level = app.level;
   const g = app.game;
+  audio.play('win');               // 剑空了：全部环下了剑
   const rec = store.solve(level.id, { moves: g.moves, par: level.par, hints: app.hints });
   if (app.day) store.markDaily(app.day, level.id);
   let nextIndex = 0;
@@ -401,6 +419,7 @@ el.modes.addEventListener('click', (ev) => {
 el.undo.addEventListener('click', () => {
   stopDemo('');
   if (undo(app.game)) {
+    audio.play('move');        // 撤销一步：盘面退了一步
     view.redraw();
     renderCrumbs();
     if (app.game.moves === 0) say('回到起点');
@@ -411,10 +430,12 @@ el.hint.addEventListener('click', () => {
   const h = hint(app.game);
   if (!h) {
     say('剑已经空了 —— 没有该拨的环');
+    audio.play('wrong');
     return;
   }
   app.hints++;
   stopDemo('');
+  audio.play('move');          // 提示：只点一环，不代拨
   view.showHint(h.ring);
   say(`提示：动 <b>第 ${h.ring + 1} 环</b>（${h.ring === 0 ? '首环随时能拨' : '它下面那一环在剑上，其余都下了'}）—— 之后还需 <b>${h.left - 1}</b> 步`);
   renderCrumbs();
@@ -633,3 +654,26 @@ if (motionQuery) {
 }
 window.rings.setReduceMotion = applyReduceMotion;
 window.rings.isReducedMotion = () => view.isReducedMotion();
+
+// ---- 音效开关（#btn-sound）----
+//
+// 静音走 `audio.setMuted(true)`，那是 `ctx.suspend()`：整个 AudioContext 挂起。
+// **不许**改成像"把 master.gain 拧到 0"那样 —— 只拧 gain 是假静音：节点照建、时钟照跑，
+// 取消静音之后还有一截尾巴在响。真正的静音必须是挂起整个上下文。
+//
+// 按钮找不到就不装（和全屏那一条同一条纪律）：留一串没人按的代码等于没做这个功能。
+(function bindSound() {
+  const btn = document.getElementById('btn-sound');
+  if (!btn) return;
+  function paint() {
+    const on = !audio.muted;
+    btn.setAttribute('aria-pressed', String(on));
+    btn.textContent = on ? '音效：开' : '音效：关';
+    btn.title = on ? '点击关闭音效' : '点击开启音效';
+  }
+  btn.addEventListener('click', () => {
+    audio.setMuted(!audio.muted);
+    paint();
+  });
+  paint();
+})();
