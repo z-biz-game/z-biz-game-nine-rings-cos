@@ -359,8 +359,8 @@ ok('D9c CI 的那一步跑的也是这一条命令（与本地同一条，不是
 const unitScript = pkg.scripts.unit || '';
 const nodeSuites = fs.readdirSync(path.join(ROOT, 'test')).filter((f) => f.endsWith('.test.mjs')).length;
 ok('D9d 这条闸进 `npm test` 的链，但**不进** `npm run unit` 的那个 test/*.test.mjs 循环——' +
-  'README 印的是「六个 node 测试套件」，把它算成第七个就是文档说谎（这一格现在当场数目录里的套件数并等于 6）',
-  chain.includes(CMD) && !unitScript.includes('docs-test') && nodeSuites === 6,
+  'README 印的是「七个 node 测试套件」，把它算成第八个就是文档说谎（这一格现在当场数目录里的套件数并等于 7）',
+  chain.includes(CMD) && !unitScript.includes('docs-test') && nodeSuites === 7,
   `链含本闸=${chain.includes(CMD)} · unit=${unitScript} · test/*.test.mjs 实数 ${nodeSuites}`);
 
 // ── 打印 ──────────────────────────────────────────────────────────────────

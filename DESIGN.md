@@ -146,7 +146,7 @@ the file, and they do not overlap" 再比对一次。改了规则却忘了让这
 ## 4. 出题：能生成是因为不用搜
 
 一条关卡 = 一个九位掩码。`js/core/make.js:56` 的 `makeLevel(seed, tierKey)` 做两件事：
-在带里抽一个距离，再取"拥有这个距离的那个位置"（`statesAtPar`，`js/core/make.js:47`）。
+在带里抽一个距离，再取"拥有这个距离的那个位置"（`js/core/make.js:47` 的 `statesAtPar`）。
 因为第 3 节那条路径性质，池子里每个距离**恰好有一个位置**，于是：
 
 - 接受率恒为 100%，重试环不存在（实测每带 500 个种子 `500/500`，`node test/balance.mjs` 第三段）；
@@ -179,7 +179,7 @@ the file, and they do not overlap" 再比对一次。改了规则却忘了让这
 `node <每个 test/*.test.mjs>`，没有浏览器）。`js/core/storage.js` 是唯一豁免：它的全部工作就是
 **守卫式**访问 `localStorage`。
 
-`store` 的单调性是产品语义，不是实现细节（`js/core/storage.js:61`）：
+`store` 的单调性是产品语义，不是实现细节（`js/core/storage.js:148`）：
 `best` 只会变小、`unlocked` 只会变大、`perfect` 的定义是 `moves <= par && !hints`
 （用提示打平不算完美）。清档是全仓唯一破坏性操作，所以做成两次点击，
 并且 `reset()` 连内存缓存一起换掉（留一份陈旧缓存会比不清档更糟：屏幕说清了、纪录还会回来）。
@@ -188,7 +188,7 @@ the file, and they do not overlap" 再比对一次。改了规则却忘了让这
 
 ## 6. 画面：把规则画对就是玩法教学
 
-`js/view.js` 只有两行是"语义"的：`settle()`（`js/view.js:110`）把每个环的目标行设为 `isOn(state, k) ? 0 : 1`，
+`js/view.js` 只有两行是"语义"的：`settle()`（`js/view.js:165`）把每个环的目标行设为 `isOn(state, k) ? 0 : 1`，
 以及 `drop[k]` 向目标插值。理由写在文件头注释里：**在上的环必须穿在杆上、拨下来的环必须挂在杆下，
 而且环要真的在两行之间移动** —— 玩家看的是这个位移才知道规则是什么。
 
@@ -197,7 +197,7 @@ the file, and they do not overlap" 再比对一次。改了规则却忘了让这
 没有这个标志 Chrome 每次回读都会在 console 打一条 warning，而 `verify.sh` 有
 "console 必须干净"的断言 ——  warning 会淹没真错误。
 
-`ringPoint(k)`（`js/view.js:360`）返回**动画后的实际位置**（含 `on`/`ring`），
+`ringPoint(k)`（`js/view.js:547`）返回**动画后的实际位置**（含 `on`/`ring`），
 这是 `@pointer` 能派发真实点击的前提；它也顺带证明了文案与画面读的是同一个 `isOn`。
 
 ---
@@ -258,6 +258,16 @@ apple-touch），同一条断言靠的是**这些文件真的在盘上、并且 
 headless Chrome 把自己报成 hidden。通关动画与胜利卡片由同一个 rAF 循环驱动，
 一暂停测试就永远看不到通关，所以 `js/main.js` 显式不接这个事件。
 
+这跟玩家自己按下的暂停是两件事：**那个是玩家说"我先离开一会儿"，这个是浏览器说
+"我看不见你了"**。玩家按下的那一个是真的暂停：仿真累加器归零、环不再位移、盘面不吃输入
+（`js/main.js` 的 `pause()` 是唯一入口，HUD 按钮与 `P` / `空格` 都汇到它；`js/view.js` 的
+`setPaused()` 冻结仿真、`press()` 直接拒收；`commit()` 再挡一道，演示与测试钩子也过不去），
+而浏览器报 hidden 这一路一概不接——否则一局棋会在玩家没碰它的时候自己走完。
+
+（远端的 10-25 批次另带了一版 `js/core/session.js` 状态机 + `test/pause.test.mjs`。本仓的演示是
+**sim clock 驱动**、不是 `setInterval`，那套壳的接线判据与本仓结构不兼容；按"同一功能只留一份、
+以本地为基底"的合并口径没有并入，只并入了它的听觉/触觉层与设计系统层。）
+
 ---
 
 ## 8. 刻意不做的东西
@@ -272,7 +282,7 @@ headless Chrome 把自己报成 hidden。通关动画与胜利卡片由同一个
   分享的是谜题本身，不含分数。
 - **除自动演示以外不加运营功能**。"演示"是允许的，因为它走 `next[]`，是求解器的可视化而不是另一个引擎
   （`@play` 与 `@pointer` 都断言它不会比 par 更便宜）。
-- **无打包器 / 无 npm 依赖 / 无网络请求**。音频不是文件：`js/core/audio.js` 用 WebAudio 现场合成，
+- **无打包器 / 无 npm 依赖 / 无网络请求**。音频不是文件：`js/audio.js` 用 WebAudio 现场合成（每声 20–200ms 的短音，含 arp），
   静音态实测不新建振荡器节点。但**位图不再是 0 个**：`assets/gen/make_art.py` 确定性生成图标阶梯、
   `favicon.ico`、apple-touch、maskable、og 卡，以及游戏内用的剑架织纹（96）与铜花火花（64）。
   前一组是商店与桌面要求的实物；后两组是矢量画不出来的物理材质——织纹铺给 `createPattern`，

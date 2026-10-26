@@ -8,8 +8,11 @@ import {
   TIERS, ALL, byId, levelAt, levelsIn, randomLevel, dailyLevel, tierByKey, stats as poolStats, closedForm,
 } from './core/library.js';
 import { todayKey } from './core/rng.js';
-import { createAudio } from './core/audio.js';
 import { createView } from './view.js';
+// 听觉与触觉这两路反馈：视觉与数值之外，桌面上还该有"听得见"的一路。
+// 音频模块自己管手势解锁与真静音（suspend），这里只管把音接到真实事件上。
+import { audio } from './audio.js';
+import { haptics } from './haptics.js';
 
 const $ = (id) => document.getElementById(id);
 const el = {
@@ -96,9 +99,9 @@ const view = createView(el.canvas, {
   onSimTick: (clock, steps) => onSimTick(clock, steps),
 });
 
-// One audio engine, and `commit()` is its only trigger — so the finger, the demo and a test
-// link all get the same feedback, and one mute silences all three.
-const audio = createAudio();
+// One audio engine (`js/audio.js` 的单例), and `commit()` is its only trigger — so the finger,
+// the demo and a test link all get the same feedback, and one mute silences all three.
+// 它自己管手势解锁（unlock）与真静音（setMuted → ctx.suspend），这里不再包一层。
 
 function setGame(level, label) {
   stopDemo('');
@@ -217,21 +220,38 @@ function render() {
 
 // The one place a click happens: a finger on the canvas, a replay from a test link, and the
 // solver's own route on the demo all arrive here, and all get held to the same rule.
+//
+// 声音接在这条路径上，因为这条路径上发生的是**真实事件**：
+//   · 暂停中 → blocked（闸挡住了，不是"错"）
+//   · 规则拒了这一拨 → wrong（canToggle 说不行：这一环此刻动不了）
+//   · 规则认了这一拨 → correct（一次有效操作成功）
+//   · 剑空了（全部下剑）→ win（在 finish 里）
 function commit(k) {
+  // 暂停时这一口是硬的：手指、拖拽、测试钩子、演示走的一步，全都从这里过。
+  // 所以暂停期间不可能偷偷落子——遮罩挡住的是画布，这一行挡住的是其余所有入口。
+  if (app.paused) {
+    audio.play('blocked');
+    view.redraw();
+    return false;
+  }
   const moved = click(app.game, k);
   if (!moved) {
-    audio.illegal();
+    audio.play('wrong');
+    haptics.wrong();
     view.redraw();
     return false;
   }
   const nowOn = isOn(app.game.state, k);
-  audio.clink(nowOn);
-  if (app.game.done) finish();
-  else {
-    view.redraw();
-    renderCrumbs();
-    say(`第 <b>${k + 1} 环</b> ${nowOn ? '上了剑' : '离了剑'} · 已用 ${app.game.moves} 步 · 距最优 <b>${remaining(app.game)}</b> 步`);
+  if (app.game.done) {
+    finish();                      // 收官那一响是 win，在 finish 里
+    haptics.correct();
+    return true;
   }
+  audio.play('correct');           // 一次有效操作成功
+  haptics.correct();
+  view.redraw();
+  renderCrumbs();
+  say(`第 <b>${k + 1} 环</b> ${nowOn ? '上了剑' : '离了剑'} · 已用 ${app.game.moves} 步 · 距最优 <b>${remaining(app.game)}</b> 步`);
   return true;
 }
 
@@ -253,7 +273,7 @@ function finish() {
     + (rec.best === g.moves ? '<br>这是这一关的最好成绩' : '');
   el.next.hidden = !nextIndex;
   el.curtain.hidden = false;
-  audio.clear();
+  audio.play('win');               // 剑空了：全部环下了剑
   view.burst();
   render();
 }
@@ -355,6 +375,8 @@ el.modes.addEventListener('click', (ev) => {
 el.undo.addEventListener('click', () => {
   stopDemo('');
   if (undo(app.game)) {
+    audio.play('tap');            // 撤销一步：盘面退了一步
+    haptics.tap();
     view.redraw();
     renderCrumbs();
     if (app.game.moves === 0) say('回到起点');
@@ -369,6 +391,7 @@ el.hint.addEventListener('click', () => {
   }
   app.hints++;
   stopDemo('');
+  audio.play('move');             // 提示：只点一环，不代拨
   view.showHint(h.ring);
   say(`提示：动 <b>第 ${h.ring + 1} 环</b>（${h.ring === 0 ? '首环随时能拨' : '它下面那一环在剑上，其余都下了'}）—— 之后还需 <b>${h.left - 1}</b> 步`);
   renderCrumbs();
@@ -398,21 +421,18 @@ el.share.addEventListener('click', shareLink);
 el.again.addEventListener('click', restart);
 el.next.addEventListener('click', () => go(`#/c/${Math.min(LEVELS, app.index + 1)}`));
 
-// Pause is a shell decision with four consequences, and the brief's point is that all four
+// Pause is a shell decision with three consequences, and the brief's point is that all three
 // have to happen: the view freezes its accumulator (so the sim stops advancing rather than
-// just repainting the same frame), the auto-demo stops 拨ing rings into a frozen board, the
-// audio engine is suspended rather than left in the air, and the player is told in words.
+// just repainting the same frame), the auto-demo stops 拨ing rings into a frozen board, and
+// the player is told in words. 输入那一头由 commit() 的暂停闸挡着（手指、演示、测试钩子同一条路）。
+// 音频不再跟着 suspend：`js/audio.js` 的每个音都是有头有尾的 20–200ms 短音，没有"正在响的
+// 背景声"可停，而它的 setMuted 是**玩家的偏好**（还会存盘），拿暂停去动它会把偏好写坏。
 // `window.rings.setPaused` drives this same function, so a probe measures the real path.
 function pause(on) {
   const next = on === undefined ? !app.paused : !!on;
   app.paused = next;
   view.setPaused(next);
-  if (next) {
-    stopDemo('');
-    audio.suspend();
-  } else {
-    audio.resume();
-  }
+  if (next) stopDemo('');
   el.pause.textContent = next ? '继续' : '暂停';
   el.pause.setAttribute('aria-pressed', String(next));
   el.pauseflag.hidden = !next;
@@ -427,7 +447,8 @@ function setMutedLabel(on) {
 }
 
 function toggleMuted() {
-  const on = audio.toggleMuted();
+  audio.setMuted(!audio.muted);
+  const on = audio.muted;
   setMutedLabel(on);
   toast(on ? '已静音' : '已开声音');
   return on;
@@ -609,7 +630,7 @@ window.rings = {
   // through the HUD does, so a measurement made this way covers the demo and the audio too.
   setPaused(on) { return pause(on); },
   paused() { return app.paused; },
-  audio() { return audio.stats(); },
+  audio() { return { unlocked: audio.unlocked ? 1 : 0, muted: audio.muted ? 1 : 0 }; },
   mute(on) {
     if (on === undefined) return toggleMuted();
     audio.setMuted(on);
